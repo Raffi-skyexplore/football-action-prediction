@@ -23,20 +23,26 @@ const ACTION_COLORS = {
 const state = {
   sourceLoaded: false,
   isVideo: false,
+  isCamera: false,
   predicting: false,
   predictionHistory: [],
   apiUrl: 'http://localhost:8000/predict',
   apiConnected: false,
-  animFrameId: null
+  animFrameId: null,
+  mediaStream: null
 };
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 const placeholder = document.getElementById('placeholder');
+const placeholderIcon = document.getElementById('placeholderIcon');
+const placeholderText = document.getElementById('placeholderText');
 const fileInput = document.getElementById('fileInput');
 const btnPredict = document.getElementById('btnPredict');
 const btnReset = document.getElementById('btnReset');
+const btnCamera = document.getElementById('btnCamera');
+const camIndicator = document.getElementById('camIndicator');
 const btnTestApi = document.getElementById('btnTestApi');
 const apiUrlInput = document.getElementById('apiUrl');
 const apiStatus = document.getElementById('apiStatus');
@@ -105,6 +111,52 @@ function drawSkeleton(keypoints) {
 
 function drawPlaceholder(visible) {
   placeholder.style.display = visible ? 'flex' : 'none';
+}
+
+async function startCamera() {
+  if (state.mediaStream) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    state.mediaStream = stream;
+    state.isCamera = true;
+    state.isVideo = true;
+    state.sourceLoaded = true;
+
+    video.srcObject = stream;
+    video.style.display = 'block';
+    video.onloadedmetadata = () => {
+      video.play();
+      drawPlaceholder(false);
+      resizeCanvas();
+      btnPredict.disabled = false;
+      animateFrame();
+    };
+
+    btnCamera.textContent = '⏹ Stop Cam';
+    btnCamera.classList.add('active');
+    camIndicator.style.display = 'flex';
+    placeholderIcon.textContent = '📷';
+    placeholderText.textContent = 'Camera active';
+  } catch (err) {
+    console.error('Camera access denied:', err);
+    alert('Camera access denied. Please allow camera permissions.');
+  }
+}
+
+function stopCamera() {
+  if (state.mediaStream) {
+    state.mediaStream.getTracks().forEach(t => t.stop());
+    state.mediaStream = null;
+  }
+  state.isCamera = false;
+  state.isVideo = false;
+  state.sourceLoaded = false;
+  video.srcObject = null;
+  btnCamera.textContent = '📷 Camera';
+  btnCamera.classList.remove('active');
+  camIndicator.style.display = 'none';
 }
 
 function generateMockKeypoints() {
@@ -239,7 +291,7 @@ async function callPredictAPI(imageData) {
 }
 
 function captureFrame() {
-  if (state.isVideo && video.paused) return null;
+  if ((state.isVideo && video.paused) || !video.videoWidth) return null;
   const c = document.createElement('canvas');
   c.width = video.videoWidth || 640;
   c.height = video.videoHeight || 480;
@@ -308,6 +360,7 @@ function handleFile(file) {
     cancelAnimationFrame(state.animFrameId);
     state.animFrameId = null;
   }
+  if (state.isCamera) stopCamera();
 
   const url = URL.createObjectURL(file);
   state.isVideo = file.type.startsWith('video/');
@@ -339,7 +392,7 @@ function handleFile(file) {
 function animateFrame() {
   if (!state.isVideo || video.paused || video.ended) return;
   if (state.sourceLoaded && !state.predicting) {
-    const kps = generateMockKeypoints();
+    const kps = state.isCamera ? [] : generateMockKeypoints();
     drawSkeleton(kps);
   }
   state.animFrameId = requestAnimationFrame(animateFrame);
@@ -350,6 +403,7 @@ function resetAll() {
     cancelAnimationFrame(state.animFrameId);
     state.animFrameId = null;
   }
+  if (state.isCamera) stopCamera();
   video.pause();
   video.src = '';
   video.style.display = 'none';
@@ -359,6 +413,8 @@ function resetAll() {
   state.predictionHistory = [];
   btnPredict.disabled = true;
   drawPlaceholder(true);
+  placeholderIcon.textContent = '🏃';
+  placeholderText.textContent = 'Upload video/image or click Camera';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('predictionResult').innerHTML = `
     <span class="pred-label">—</span>
@@ -383,6 +439,10 @@ document.addEventListener('drop', e => {
   }
 });
 
+btnCamera.addEventListener('click', () => {
+  if (state.isCamera) { stopCamera(); resetAll(); }
+  else { startCamera(); }
+});
 btnPredict.addEventListener('click', runPrediction);
 btnReset.addEventListener('click', resetAll);
 btnTestApi.addEventListener('click', testApiConnection);

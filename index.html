@@ -20,13 +20,18 @@
             <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
             <div class="placeholder" id="placeholder">
-              <span class="placeholder-icon">🏃</span>
-              <span>Upload or drag video/image here</span>
+              <span class="placeholder-icon" id="placeholderIcon">🏃</span>
+              <span id="placeholderText">Upload video/image or click Camera</span>
+            </div>
+            <div class="cam-indicator" id="camIndicator">
+              <span class="cam-dot"></span>
+              <span>LIVE</span>
             </div>
           </div>
           <div class="controls">
             <label class="btn" for="fileInput">📁 Upload</label>
             <input type="file" id="fileInput" accept="video/*,image/*" hidden />
+            <button class="btn" id="btnCamera">📷 Camera</button>
             <button class="btn" id="btnPredict" disabled>🔮 Predict</button>
             <button class="btn btn-secondary" id="btnReset">↺ Reset</button>
           </div>

@@ -140,6 +140,52 @@ main {
   border-radius: 6px;
 }
 
+.btn-camera {
+  background: #059669;
+}
+
+.btn-camera:hover {
+  background: #047857;
+}
+
+.btn-camera.active {
+  background: #dc2626;
+}
+
+.btn-camera.active:hover {
+  background: #b91c1c;
+}
+
+.cam-indicator {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.cam-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: blink 1s steps(2, jump-none) infinite;
+}
+
+@keyframes blink {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .right-panel {
   display: flex;
   flex-direction: column;
