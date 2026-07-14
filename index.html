@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Football Action Prediction</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>⚽ Football Next-Action Prediction</h1>
+      <p class="subtitle">Pure Vision · Pose-Based Action Forecasting</p>
+    </header>
+
+    <main>
+      <div class="left-panel">
+        <div class="video-section">
+          <div class="canvas-wrapper">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div class="placeholder" id="placeholder">
+              <span class="placeholder-icon">🏃</span>
+              <span>Upload or drag video/image here</span>
+            </div>
+          </div>
+          <div class="controls">
+            <label class="btn" for="fileInput">📁 Upload</label>
+            <input type="file" id="fileInput" accept="video/*,image/*" hidden />
+            <button class="btn" id="btnPredict" disabled>🔮 Predict</button>
+            <button class="btn btn-secondary" id="btnReset">↺ Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="panel-card">
+          <h3>🎯 Current Prediction</h3>
+          <div class="prediction-result" id="predictionResult">
+            <span class="pred-label">—</span>
+            <span class="pred-conf">—</span>
+          </div>
+          <div class="confidence-bars" id="confidenceBars"></div>
+        </div>
+
+        <div class="panel-card">
+          <h3>📊 Pose Keypoints</h3>
+          <div class="keypoint-stats" id="keypointStats">
+            <span>Detected: <strong id="kpCount">0</strong></span>
+            <span>Confidence: <strong id="kpConf">—</strong></span>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3>⏱ Prediction History</h3>
+          <div class="history-list" id="historyList">
+            <span class="history-empty">No predictions yet</span>
+          </div>
+        </div>
+
+        <div class="panel-card api-config">
+          <h3>🔌 API Settings</h3>
+          <div class="api-row">
+            <input type="text" id="apiUrl" value="http://localhost:8000/predict" />
+            <button class="btn btn-small" id="btnTestApi">Test</button>
+          </div>
+          <span class="api-status" id="apiStatus">Disconnected</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
