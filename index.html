@@ -11,7 +11,7 @@
   <div id="app">
     <header>
       <h1>⚽ Live Motion Capture</h1>
-      <p class="subtitle">Real-time Pose-Based Action Forecasting</p>
+      <p class="subtitle">AI-Powered Pose-Based Action Forecasting</p>
     </header>
 
     <main>
@@ -27,6 +27,10 @@
             <div class="cam-indicator" id="camIndicator">
               <span class="cam-dot"></span>
               <span>LIVE</span>
+            </div>
+            <div class="model-loading" id="modelLoading">
+              <div class="spinner"></div>
+              <span>Loading AI model...</span>
             </div>
           </div>
           <div class="controls">
@@ -77,19 +81,12 @@
             <span class="history-empty">No predictions yet</span>
           </div>
         </div>
-
-        <div class="panel-card api-config">
-          <h3>🔌 API Settings</h3>
-          <div class="api-row">
-            <input type="text" id="apiUrl" value="http://localhost:8000/predict" />
-            <button class="btn btn-small" id="btnTestApi">Test</button>
-          </div>
-          <span class="api-status" id="apiStatus">Disconnected</span>
-        </div>
       </div>
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
