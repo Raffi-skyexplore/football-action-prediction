@@ -488,6 +488,7 @@ function getPitchPosition(kps) {
 
 function drawPitch() {
   const c = pitchCanvas, cx = pitchCtx;
+  if (c.width < 10 || c.height < 10) return;
   const w = c.width, h = c.height;
   cx.clearRect(0, 0, w, h);
 
