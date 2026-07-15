@@ -16,7 +16,8 @@ const state = {
   detector: null, modelReady: false,
   animFrameId: null, mediaStream: null, detectInterval: null,
   lastKeypoints: null, targetKeypoints: null, targetAction: null,
-  matchScore: 0, prevAction: null
+  matchScore: 0, prevAction: null,
+  role: 'player'
 };
 
 const $ = id => document.getElementById(id);
@@ -500,7 +501,7 @@ function getNextAction(allActions, currentAction) {
   return sorted[0][0] === currentAction ? sorted[1][0] : sorted[0][0];
 }
 
-const TIPS = {
+const PLAYER_TIPS = {
   shoot: [
     { min: 0, max: 30, icon: '🦵', text: 'Lift your <span class="highlight">kicking leg</span> much higher — drive the knee up' },
     { min: 30, max: 60, icon: '⚖️', text: 'Extend your <span class="highlight">opposite arm</span> wider for balance' },
@@ -539,6 +540,56 @@ const TIPS = {
   ]
 };
 
+const COACH_TIPS = {
+  shoot: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Knee up, toe down"</span> — focus on leg drive' },
+    { min: 30, max: 60, icon: '👀', text: 'Observe <span class="highlight">arm opposition</span> — remind them to extend for balance' },
+    { min: 60, max: 80, icon: '🔍', text: 'Watch the <span class="highlight">ankle lock</span> — this separates good from great' },
+    { min: 80, max: 101, icon: '✅', text: 'Technique looks solid. Now work on <span class="highlight">decision-making</span> under pressure' }
+  ],
+  pass: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Push through, don\'t poke"</span> — full arm extension' },
+    { min: 30, max: 60, icon: '👀', text: 'Check <span class="highlight">shoulder alignment</span> — square to target = accuracy' },
+    { min: 60, max: 80, icon: '🔍', text: 'Good foundation. Introduce <span class="highlight">weight transfer</span> drills next' },
+    { min: 80, max: 101, icon: '✅', text: 'Passing form is repeatable. Progress to <span class="highlight">moving targets</span>' }
+  ],
+  dribble: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Sit down, stay low"</span> — bend is not low enough' },
+    { min: 30, max: 60, icon: '👀', text: 'Tell them to <span class="highlight">scan the field</span> while keeping low posture' },
+    { min: 60, max: 80, icon: '🔍', text: 'Good crouch. Next: <span class="highlight">change of pace</span> while maintaining form' },
+    { min: 80, max: 101, icon: '✅', text: 'Posture is pro-level. Introduce <span class="highlight">defender shadow</span> drills' }
+  ],
+  run: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Lean and drive"</span> — forward lean needs work' },
+    { min: 30, max: 60, icon: '👀', text: 'Watch the <span class="highlight">arm-leg coordination</span> — opposite arm drive' },
+    { min: 60, max: 80, icon: '🔍', text: 'Good rhythm. Drill: <span class="highlight">high-knee runs</span> to increase power' },
+    { min: 80, max: 101, icon: '✅', text: 'Efficient sprint mechanics. Add <span class="highlight">resistance training</span> next phase' }
+  ],
+  tackle: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Get low, get big"</span> — hips need to drop much more' },
+    { min: 30, max: 60, icon: '👀', text: 'Check <span class="highlight">lead leg extension</span> — they need more reach' },
+    { min: 60, max: 80, icon: '🔍', text: 'Good body shape. Drill <span class="highlight">side-on tackling</span> with a partner' },
+    { min: 80, max: 101, icon: '✅', text: 'Tackle technique is sound. Practice <span class="highlight">live 1v1</span> scenarios' }
+  ],
+  stop: [
+    { min: 0, max: 30, icon: '📣', text: 'Cue: <span class="highlight">"Athletic stance"</span> — feet shoulder-width, knees bent' },
+    { min: 30, max: 60, icon: '👀', text: 'Tell them to stay <span class="highlight">on the balls of their feet</span>, not flat' },
+    { min: 60, max: 80, icon: '🔍', text: 'Good base. Now teach <span class="highlight">scanning habits</span> — left, right, behind' },
+    { min: 80, max: 101, icon: '✅', text: 'Player reads the pitch well. Work on <span class="highlight">first touch</span> from this stance' }
+  ]
+};
+
+const COACH_TRANSITION = {
+  shoot_pass: 'After the shot, coach: <span class="highlight">"Land and find your next target"</span>',
+  shoot_dribble: 'Teach: <span class="highlight">follow the shot</span> — prepare for rebound scenarios',
+  pass_shoot: 'Progression: <span class="highlight">pass and move</span> — create space for a return',
+  pass_dribble: 'Next drill: <span class="highlight">disguise the pass</span>, then dribble away',
+  dribble_shoot: 'Cue from dribble: <span class="highlight">"Set your feet, then strike"</span>',
+  dribble_pass: 'Coach point: <span class="highlight">lift the head</span> before releasing the pass',
+  run_shoot: 'Drill: <span class="highlight">sprint → short stride → shoot</span> in one motion',
+  run_tackle: 'Cue: <span class="highlight">"Drop the hips"</span> when transitioning from run to tackle'
+};
+
 const TRANSITION_TIPS = {
   shoot_pass: 'After the shot, <span class="highlight">land balanced</span> and scan for your next pass',
   shoot_dribble: 'Follow your shot and prepare to <span class="highlight">dribble</span> if it rebounds',
@@ -550,13 +601,23 @@ const TRANSITION_TIPS = {
   run_tackle: '<span class="highlight">Lower your center</span> of gravity to transition into a tackle'
 };
 
+function getTipsForRole(role) {
+  return role === 'coach' ? COACH_TIPS : PLAYER_TIPS;
+}
+
+function getTransForRole(role) {
+  return role === 'coach' ? COACH_TRANSITION : TRANSITION_TIPS;
+}
+
 function generateSuggestion(data, matchScore, nextAction, features) {
   const pct = matchScore * 100;
-  const actionTips = TIPS[data.action] || TIPS.stop;
+  const tips = getTipsForRole(state.role);
+  const transTips = getTransForRole(state.role);
+  const actionTips = tips[data.action] || tips.stop;
   const tier = actionTips.find(t => pct >= t.min && pct < t.max) || actionTips[actionTips.length - 1];
 
   const transKey = data.action + '_' + nextAction;
-  const transTip = TRANSITION_TIPS[transKey];
+  const transTip = transTips[transKey];
 
   let parts = `<div class="suggestion-icon">${tier.icon}</div>`;
 
@@ -712,6 +773,26 @@ function resetAll() {
   skeletonLabel.textContent = 'Waiting...';
   placeholder.style.display = 'flex';
 }
+
+const roleBadge = $('roleBadge');
+const userDropdown = $('userDropdown');
+
+function setRole(role) {
+  state.role = role;
+  roleBadge.innerHTML = role === 'coach' ? '🔵 Coach' : '🟢 Player';
+  userDropdown.classList.remove('open');
+}
+
+document.querySelectorAll('.dropdown-item').forEach(el => {
+  el.addEventListener('click', () => setRole(el.dataset.role));
+});
+
+$('btnUser').addEventListener('click', (e) => {
+  e.stopPropagation();
+  userDropdown.classList.toggle('open');
+});
+
+document.addEventListener('click', () => userDropdown.classList.remove('open'));
 
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);

@@ -141,6 +141,59 @@ body::after {
   background: var(--accent-subtle);
 }
 
+.role-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  color: #f0f4ff;
+  border: 1px solid rgba(240, 244, 255, 0.15);
+  letter-spacing: 0.2px;
+  cursor: default;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: none;
+  z-index: 100;
+}
+
+.user-dropdown.open { display: block; }
+
+.dropdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.12s;
+}
+
+.dropdown-item:hover {
+  background: var(--accent-subtle);
+}
+
+.dropdown-item .dropdown-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* Layout */
 main {
   display: grid;

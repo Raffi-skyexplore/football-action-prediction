@@ -18,8 +18,15 @@
         <span class="topbar-title">PoseCoach</span>
       </div>
       <div class="topbar-right">
+        <span class="role-badge" id="roleBadge">🟢 Player</span>
         <button class="topbar-btn" id="btnSettings" title="Settings">⚙️</button>
-        <button class="topbar-btn" id="btnUser" title="User">👤</button>
+        <div class="user-menu">
+          <button class="topbar-btn" id="btnUser" title="User">👤</button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-item" data-role="player">🟢 <strong>Player</strong><span class="dropdown-sub">体能 / 技术建议</span></div>
+            <div class="dropdown-item" data-role="coach">🔵 <strong>Coach</strong><span class="dropdown-sub">执教 / 训练策略</span></div>
+          </div>
+        </div>
       </div>
     </nav>
 
