@@ -562,6 +562,46 @@ main {
 .history-item .h-conf { color: var(--ucl-gold); font-size: 11px; }
 .history-item .h-time { color: var(--ucl-muted); font-size: 10px; }
 
+/* AI Suggestion */
+.suggestion-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.suggestion-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.suggestion-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ucl-white);
+  opacity: 0.9;
+}
+
+.suggestion-text .highlight {
+  color: var(--ucl-gold);
+  font-weight: 700;
+}
+
+.suggestion-text .match-good {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.suggestion-text .match-ok {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.suggestion-text .match-bad {
+  color: #ef4444;
+  font-weight: 700;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

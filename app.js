@@ -27,6 +27,8 @@ const feedbackSection = $('feedbackSection'), feedbackStatus = $('feedbackStatus
 const feedbackMain = $('feedbackMain'), feedbackNext = $('feedbackNext');
 const feedbackBars = $('feedbackBars'), feedbackStream = $('feedbackStream');
 const matchPct = $('matchPct'), matchBarFill = $('matchBarFill');
+const suggestionText = $('suggestionText');
+const suggestionBody = $('suggestionBody');
 
 let streamItems = [];
 
@@ -419,6 +421,84 @@ function getNextAction(allActions, currentAction) {
   return sorted[0][0] === currentAction ? sorted[1][0] : sorted[0][0];
 }
 
+const TIPS = {
+  shoot: [
+    { min: 0, max: 30, icon: '🦵', text: 'Lift your <span class="highlight">kicking leg</span> much higher — drive the knee up' },
+    { min: 30, max: 60, icon: '⚖️', text: 'Extend your <span class="highlight">opposite arm</span> wider for balance' },
+    { min: 60, max: 80, icon: '🦶', text: 'Point your toe and <span class="highlight">lock your ankle</span> for a clean strike' },
+    { min: 80, max: 101, icon: '💥', text: 'Excellent shooting form! Follow through toward the target' }
+  ],
+  pass: [
+    { min: 0, max: 30, icon: '🙌', text: 'Push both <span class="highlight">arms forward</span> — extend through the elbows' },
+    { min: 30, max: 60, icon: '🔄', text: 'Rotate your <span class="highlight">shoulders square</span> to the target' },
+    { min: 60, max: 80, icon: '🎯', text: 'Good arm shape — <span class="highlight">lead with your wrists</span> for accuracy' },
+    { min: 80, max: 101, icon: '✅', text: 'Perfect passing stance! Weight on your front foot' }
+  ],
+  dribble: [
+    { min: 0, max: 30, icon: '⬇️', text: '<span class="highlight">Lower your center</span> of gravity — bend knees much more' },
+    { min: 30, max: 60, icon: '🙆', text: 'Keep the <span class="highlight">ball close</span> — arms relaxed at your sides' },
+    { min: 60, max: 80, icon: '👀', text: 'Great crouch! Keep your <span class="highlight">head up</span> to scan the field' },
+    { min: 80, max: 101, icon: '⚡', text: 'Excellent dribble posture! Ready to change direction' }
+  ],
+  run: [
+    { min: 0, max: 30, icon: '🏃', text: '<span class="highlight">Lean forward</span> from your ankles — pump your arms' },
+    { min: 30, max: 60, icon: '💪', text: 'Drive your <span class="highlight">elbows back</span> — opposite arm to leg' },
+    { min: 60, max: 80, icon: '🦵', text: 'Good rhythm! Increase <span class="highlight">knee drive</span> for more power' },
+    { min: 80, max: 101, icon: '🚀', text: 'Sprinting form looks sharp! Light on your feet' }
+  ],
+  tackle: [
+    { min: 0, max: 30, icon: '⬇️', text: '<span class="highlight">Drop your hips</span> low — you need to be much lower' },
+    { min: 30, max: 60, icon: '🦵', text: 'Extend your <span class="highlight">leading leg</span> further — win the ball' },
+    { min: 60, max: 80, icon: '🛡️', text: 'Good reach! <span class="highlight">Keep your body side-on</span> to protect' },
+    { min: 80, max: 101, icon: '💪', text: 'Textbook tackle! Strong and low — ball is yours' }
+  ],
+  stop: [
+    { min: 0, max: 30, icon: '🧘', text: 'Stand in a relaxed <span class="highlight">athletic stance</span> — ready to move' },
+    { min: 30, max: 60, icon: '👀', text: 'Stay on the <span class="highlight">balls of your feet</span> — scan the pitch' },
+    { min: 60, max: 80, icon: '🔄', text: 'Good awareness! <span class="highlight">Check your shoulder</span> for pressure' },
+    { min: 80, max: 101, icon: '🌟', text: 'Perfect ready position — you cover the space well' }
+  ]
+};
+
+const TRANSITION_TIPS = {
+  shoot_pass: 'After the shot, <span class="highlight">land balanced</span> and scan for your next pass',
+  shoot_dribble: 'Follow your shot and prepare to <span class="highlight">dribble</span> if it rebounds',
+  pass_shoot: 'After passing, <span class="highlight">move into space</span> for a return pass or shot',
+  pass_dribble: 'After passing, <span class="highlight">disguise your next move</span> — dribble or run',
+  dribble_shoot: 'From dribble, <span class="highlight">set your feet</span> quickly and shoot',
+  dribble_pass: 'From dribble, <span class="highlight">lift your head</span> and pick out the pass',
+  run_shoot: 'From a run, <span class="highlight">shorten your stride</span> to set up the shot',
+  run_tackle: '<span class="highlight">Lower your center</span> of gravity to transition into a tackle'
+};
+
+function generateSuggestion(data, matchScore, nextAction, features) {
+  const pct = matchScore * 100;
+  const actionTips = TIPS[data.action] || TIPS.stop;
+  const tier = actionTips.find(t => pct >= t.min && pct < t.max) || actionTips[actionTips.length - 1];
+
+  const transKey = data.action + '_' + nextAction;
+  const transTip = TRANSITION_TIPS[transKey];
+
+  let parts = `<div class="suggestion-icon">${tier.icon}</div>`;
+
+  if (pct < 30) {
+    parts += `<div class="suggestion-text"><span class="match-bad">Needs work</span> — ${tier.text}`;
+  } else if (pct < 60) {
+    parts += `<div class="suggestion-text"><span class="match-ok">Getting there</span> — ${tier.text}`;
+  } else if (pct < 80) {
+    parts += `<div class="suggestion-text"><span class="match-ok">Almost!</span> — ${tier.text}`;
+  } else {
+    parts += `<div class="suggestion-text"><span class="match-good">Nailed it!</span> — ${tier.text}`;
+  }
+
+  if (transTip) {
+    parts += `<br><br>🔄 <span style="opacity:0.7;font-size:12px;">${transTip}</span>`;
+  }
+
+  parts += '</div>';
+  return parts;
+}
+
 function displayPrediction(data, kps) {
   const nextAction = getNextAction(data.all_actions, data.action);
   state.targetAction = nextAction;
@@ -441,6 +521,8 @@ function displayPrediction(data, kps) {
   $('predictionResult').innerHTML = `<span class="pred-label" style="color:${ACTION_COLORS[data.action]||'#f1f5f9'}">${ACTION_NAMES[data.action]||data.action}</span>
     <span class="pred-conf">${(data.confidence*100).toFixed(1)}%</span>`;
   renderBars($('confidenceBars'), data.all_actions);
+
+  suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
 }
 
 function addHistory(action, confidence) {
@@ -544,6 +626,7 @@ function resetAll() {
   $('kpCount').textContent = '0'; $('kpConf').textContent = '—';
   $('predictionResult').innerHTML = '<span class="pred-label">—</span><span class="pred-conf">—</span>';
   $('confidenceBars').innerHTML = ''; renderHistory();
+  suggestionBody.innerHTML = '<div class="suggestion-icon">🧘</div><div class="suggestion-text" id="suggestionText">Stand in frame to receive coaching tips</div>';
   placeholder.style.display = 'flex';
 }
 
