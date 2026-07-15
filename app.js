@@ -234,6 +234,129 @@ function computeMatch(detected, target) {
   return totalW > 0 ? totalSim / totalW : 0;
 }
 
+const LIMB_PAIRS = [
+  { a: 5, b: 6, w: 1.0 }, { a: 5, b: 7, w: 0.55 }, { a: 7, b: 9, w: 0.4 },
+  { a: 6, b: 8, w: 0.55 }, { a: 8, b: 10, w: 0.4 },
+  { a: 11, b: 12, w: 0.8 }, { a: 11, b: 13, w: 0.65 }, { a: 13, b: 15, w: 0.45 },
+  { a: 12, b: 14, w: 0.65 }, { a: 14, b: 16, w: 0.45 },
+  { a: 5, b: 11, w: 0.9 }, { a: 6, b: 12, w: 0.9 },
+  { a: 0, b: 5, w: 0.5 }, { a: 0, b: 6, w: 0.5 }
+];
+
+function drawRealBody(kps, isGhost) {
+  if (!kps || kps.length < 17) return;
+
+  const bh = dist(mid(kps[5], kps[6]), mid(kps[11], kps[12]));
+  const refW = Math.max(20, bh * 0.22);
+  const headR = Math.max(8, bh * 0.14);
+
+  const valid = kps.map(k => k.c || k.score || 0);
+  const avgC = valid.reduce((a, b) => a + b, 0) / valid.length;
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (isGhost) {
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.35;
+
+    const torsoPts = [kps[5], kps[6], kps[12], kps[11]];
+    if (torsoPts.every((p, i) => torsoPts[i])) {
+      ctx.beginPath();
+      ctx.moveTo(kps[5].x, kps[5].y);
+      ctx.lineTo(kps[6].x, kps[6].y);
+      ctx.lineTo(kps[12].x, kps[12].y);
+      ctx.lineTo(kps[11].x, kps[11].y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    for (const limb of LIMB_PAIRS) {
+      const a = kps[limb.a], b = kps[limb.b];
+      if (!a || !b) continue;
+      if (valid[limb.a] < 0.3 || valid[limb.b] < 0.3) continue;
+      const lw = refW * limb.w * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = Math.max(3, lw);
+      ctx.setLineDash([4, 5]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.arc(kps[0].x, kps[0].y, headR * 0.8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const color = avgC > 0.7 ? '#22c55e' : avgC > 0.4 ? '#f59e0b' : '#ef4444';
+
+  const torsoPts = [kps[5], kps[6], kps[12], kps[11]];
+  if (torsoPts.every(p => p)) {
+    ctx.beginPath();
+    ctx.moveTo(kps[5].x, kps[5].y);
+    ctx.lineTo(kps[6].x, kps[6].y);
+    ctx.lineTo(kps[12].x, kps[12].y);
+    ctx.lineTo(kps[11].x, kps[11].y);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(kps[5].x, kps[5].y, kps[12].x, kps[12].y);
+    grad.addColorStop(0, color + '80');
+    grad.addColorStop(1, color + '30');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = color + '90';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  for (const limb of LIMB_PAIRS) {
+    const a = kps[limb.a], b = kps[limb.b];
+    if (!a || !b) continue;
+    if (valid[limb.a] < 0.3 || valid[limb.b] < 0.3) continue;
+    const conf = (valid[limb.a] + valid[limb.b]) / 2;
+    const lw = refW * limb.w * (0.4 + conf * 0.4);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = conf > 0.7 ? color : conf > 0.4 ? '#f59e0b' : '#ef4444';
+    ctx.lineWidth = Math.max(4, lw);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(kps[0].x, kps[0].y, headR, 0, Math.PI * 2);
+  const hGrad = ctx.createRadialGradient(kps[0].x - headR * 0.3, kps[0].y - headR * 0.3, 1, kps[0].x, kps[0].y, headR);
+  hGrad.addColorStop(0, color + 'cc');
+  hGrad.addColorStop(1, color + '60');
+  ctx.fillStyle = hGrad;
+  ctx.fill();
+  ctx.strokeStyle = color + '80';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const validKps = kps.filter((_, i) => valid[i] > 0.3);
+  const avg = validKps.length ? validKps.reduce((s, k) => s + (k.c || k.score || 0), 0) / validKps.length : 0;
+  $('kpCount').textContent = validKps.length;
+  $('kpConf').textContent = (avg * 100).toFixed(1) + '%';
+}
+
 function drawAll(detectedKps, targetKps) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const w = canvas.width, h = canvas.height;
@@ -242,45 +365,17 @@ function drawAll(detectedKps, targetKps) {
   const ox = (w - vw * scale) / 2, oy = (h - vh * scale) / 2;
 
   if (targetKps) {
-    const tk = targetKps.map(k => ({ sx: k.x * scale + ox, sy: k.y * scale + oy, c: 1 }));
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth = 2.5;
-    for (const [i, j] of SKELETON) {
-      ctx.beginPath(); ctx.moveTo(tk[i].sx, tk[i].sy); ctx.lineTo(tk[j].sx, tk[j].sy);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.stroke();
-    }
-    for (const k of tk) {
-      ctx.beginPath(); ctx.arc(k.sx, k.sy, 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.fill();
-    }
-    ctx.setLineDash([]);
+    const tk = targetKps.map(k => ({ x: k.x * scale + ox, y: k.y * scale + oy, score: 1, confidence: 1 }));
+    drawRealBody(tk, true);
   }
 
   if (detectedKps) {
     const dk = detectedKps.map(k => ({
-      x: k.x, y: k.y,
-      c: k.confidence != null ? k.confidence : (k.score || 0),
-      sx: k.x * scale + ox, sy: k.y * scale + oy
+      x: k.x * scale + ox, y: k.y * scale + oy,
+      score: k.confidence != null ? k.confidence : (k.score || 0),
+      confidence: k.confidence != null ? k.confidence : (k.score || 0)
     }));
-    for (const [i, j] of SKELETON) {
-      if (dk[i].c < 0.3 || dk[j].c < 0.3) continue;
-      const conf = (dk[i].c + dk[j].c) / 2;
-      ctx.beginPath(); ctx.moveTo(dk[i].sx, dk[i].sy); ctx.lineTo(dk[j].sx, dk[j].sy);
-      ctx.strokeStyle = conf > 0.7 ? '#22c55e' : conf > 0.4 ? '#f59e0b' : '#ef4444';
-      ctx.lineWidth = 2 + conf * 2; ctx.stroke();
-    }
-    for (const k of dk) {
-      if (k.c < 0.3) continue;
-      const r = 3 + k.c * 3;
-      ctx.beginPath(); ctx.arc(k.sx, k.sy, r, 0, Math.PI * 2);
-      ctx.fillStyle = k.c > 0.7 ? '#22c55e' : k.c > 0.4 ? '#f59e0b' : '#ef4444';
-      ctx.fill();
-      ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
-    }
-    const valid = dk.filter(k => k.c > 0.3);
-    const avg = valid.length ? valid.reduce((s, k) => s + k.c, 0) / valid.length : 0;
-    $('kpCount').textContent = valid.length;
-    $('kpConf').textContent = (avg * 100).toFixed(1) + '%';
+    drawRealBody(dk, false);
   }
 }
 
