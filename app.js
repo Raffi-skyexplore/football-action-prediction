@@ -18,7 +18,8 @@ const state = {
   lastKeypoints: null, targetKeypoints: null, targetAction: null,
   matchScore: 0, prevAction: null,
   role: 'player',
-  modelType: 'lightning'
+  modelType: 'lightning',
+  actionPositions: []
 };
 
 const $ = id => document.getElementById(id);
@@ -34,6 +35,10 @@ const suggestionBody = $('suggestionBody');
 const skeletonCanvas = $('skeletonCanvas');
 const skeletonCtx = skeletonCanvas.getContext('2d');
 const skeletonLabel = $('skeletonLabel');
+const pitchCanvas = $('pitchCanvas');
+const pitchCtx = pitchCanvas.getContext('2d');
+const pitchCard = $('pitchCard');
+const pitchLegend = $('pitchLegend');
 
 let streamItems = [];
 
@@ -47,8 +52,16 @@ function resizeSkeletonCanvas() {
   skeletonCanvas.width = rect.width;
   skeletonCanvas.height = rect.height;
 }
+
+function resizePitchCanvas() {
+  const rect = pitchCanvas.getBoundingClientRect();
+  pitchCanvas.width = rect.width;
+  pitchCanvas.height = rect.height;
+  drawPitch();
+}
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('resize', resizeSkeletonCanvas);
+window.addEventListener('resize', resizePitchCanvas);
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -462,6 +475,89 @@ function drawPureGhost(kps, actionName) {
   cx.stroke();
 }
 
+function getPitchPosition(kps) {
+  if (!kps || kps.length < 17) return null;
+  const hip = mid(kps[11], kps[12]);
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+  return { x: hip.x / vw, y: hip.y / vh };
+}
+
+function drawPitch() {
+  const c = pitchCanvas, cx = pitchCtx;
+  const w = c.width, h = c.height;
+  cx.clearRect(0, 0, w, h);
+
+  const pad = 16;
+  const pw = w - pad * 2, ph = h - pad * 2;
+
+  function fx(v) { return pad + v * pw; }
+  function fy(v) { return pad + v * ph; }
+
+  cx.fillStyle = '#2d7d3f';
+  cx.fillRect(0, 0, w, h);
+
+  const alt = '#3a8a4a';
+  for (let r = 0; r < ph; r += 12) {
+    if ((Math.floor(r / 12) % 2) === 0) {
+      cx.fillStyle = (Math.floor(r / 12) % 4 < 2) ? alt : '#2d7d3f';
+    } else {
+      cx.fillStyle = (Math.floor(r / 12) % 4 < 2) ? '#2d7d3f' : alt;
+    }
+    cx.fillRect(pad, pad + r, pw, 12);
+  }
+
+  cx.strokeStyle = 'rgba(255,255,255,0.6)';
+  cx.lineWidth = 2;
+
+  cx.strokeRect(pad, pad, pw, ph);
+
+  const cx0 = fx(0.5);
+  cx.beginPath();
+  cx.moveTo(cx0, pad);
+  cx.lineTo(cx0, pad + ph);
+  cx.stroke();
+
+  cx.beginPath();
+  cx.arc(cx0, pad + ph * 0.5, ph * 0.15, 0, Math.PI * 2);
+  cx.stroke();
+
+  const paTop = pad + ph * 0.12, paBot = pad + ph * 0.88;
+  const paW = pw * 0.18;
+
+  cx.strokeRect(fx(0) - paW, paTop, paW, paBot - paTop);
+  cx.strokeRect(fx(1), paTop, paW, paBot - paTop);
+
+  cx.lineWidth = 1.5;
+  const gW = pw * 0.06;
+  cx.strokeRect(fx(0) - gW, pad + ph * 0.35, gW, ph * 0.3);
+  cx.strokeRect(fx(1), pad + ph * 0.35, gW, ph * 0.3);
+
+  const actions = state.actionPositions;
+  for (let i = 0; i < actions.length; i++) {
+    const a = actions[i];
+    const age = (Date.now() - a.time) / 1000;
+    const alpha = Math.max(0.05, 1 - age / 120);
+    const r = Math.max(3, 7 * (1 - age / 180));
+    const color = ACTION_COLORS[a.action] || '#64748b';
+
+    cx.beginPath();
+    cx.arc(fx(a.x), fy(a.y), r, 0, Math.PI * 2);
+    cx.fillStyle = color + Math.round(alpha * 180).toString(16).padStart(2, '0');
+    cx.fill();
+    cx.strokeStyle = color + Math.round(Math.min(alpha * 200, 200)).toString(16).padStart(2, '0');
+    cx.lineWidth = 1.5;
+    cx.stroke();
+  }
+}
+
+function addActionPosition(kps, action) {
+  const pos = getPitchPosition(kps);
+  if (!pos) return;
+  state.actionPositions.push({ x: pos.x, y: pos.y, action, time: Date.now() });
+  if (state.actionPositions.length > 300) state.actionPositions.splice(0, 50);
+  drawPitch();
+}
+
 function renderBars(container, allActions) {
   container.innerHTML = '';
   for (const [action, conf] of Object.entries(allActions).sort((a, b) => b[1] - a[1])) {
@@ -666,6 +762,8 @@ function displayPrediction(data, kps) {
   suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
 
   drawPureGhost(state.targetKeypoints, nextAction);
+
+  if (state.role === 'coach') addActionPosition(kps, data.action);
 }
 
 function addHistory(action, confidence) {
@@ -800,6 +898,8 @@ function resetAll() {
   suggestionBody.innerHTML = '<div class="suggestion-icon">🧘</div><div class="suggestion-text" id="suggestionText">Stand in frame to receive coaching tips</div>';
   skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
   skeletonLabel.textContent = 'Waiting...';
+  state.actionPositions = [];
+  pitchCtx.clearRect(0, 0, pitchCanvas.width, pitchCanvas.height);
   placeholder.style.display = 'flex';
 }
 
@@ -808,10 +908,23 @@ const userDropdown = $('userDropdown');
 const settingsPanel = $('settingsPanel');
 const settingsOverlay = $('settingsOverlay');
 
+function buildLegend() {
+  const names = { shoot: 'Shoot', pass: 'Pass', dribble: 'Dribble', run: 'Run', tackle: 'Tackle', stop: 'Stand' };
+  pitchLegend.innerHTML = Object.entries(ACTION_COLORS).map(([k, v]) =>
+    `<span class="legend-item"><span class="legend-dot" style="background:${v}"></span>${names[k]}</span>`
+  ).join('');
+}
+
 function setRole(role) {
   state.role = role;
   roleBadge.innerHTML = role === 'coach' ? '🔵 Coach' : '🟢 Player';
   userDropdown.classList.remove('open');
+  if (role === 'coach') {
+    pitchCard.classList.add('visible');
+    setTimeout(() => { resizePitchCanvas(); }, 50);
+  } else {
+    pitchCard.classList.remove('visible');
+  }
 }
 
 document.querySelectorAll('.dropdown-item').forEach(el => {
@@ -865,4 +978,6 @@ btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startC
 btnReset.addEventListener('click', resetAll);
 resizeCanvas();
 resizeSkeletonCanvas();
+resizePitchCanvas();
+buildLegend();
 loadModel();
