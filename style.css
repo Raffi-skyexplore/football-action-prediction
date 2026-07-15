@@ -257,13 +257,29 @@ main {
   background: #0f172a;
   border-radius: 10px;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fb-label-sm {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  min-width: 48px;
 }
 
 .feedback-main {
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 12px;
 }
 
 .fb-label {
@@ -275,6 +291,59 @@ main {
   font-size: 20px;
   font-weight: 700;
   color: #22c55e;
+}
+
+.feedback-next {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fb-next-label {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.fb-next-icon {
+  font-size: 18px;
+}
+
+/* Match Score */
+.fb-match {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.match-pct {
+  font-size: 18px;
+  font-weight: 700;
+  transition: color 0.3s;
+}
+
+.match-bar-track {
+  height: 10px;
+  background: #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.match-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: #3b82f6;
+  transition: width 0.3s ease, background 0.3s ease;
 }
 
 .feedback-bars .conf-bar-row {

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Football Action Prediction</title>
+  <title>Football Action Coach</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>⚽ Live Motion Capture</h1>
-      <p class="subtitle">AI-Powered Pose-Based Action Forecasting</p>
+      <h1>⚽ Live Pose Coach</h1>
+      <p class="subtitle">Match the suggested pose · AI-powered motion training</p>
     </header>
 
     <main>
@@ -22,7 +22,7 @@
             <canvas id="overlay"></canvas>
             <div class="placeholder" id="placeholder">
               <span class="placeholder-icon">🏃</span>
-              <span>Click Camera to start live motion capture</span>
+              <span>Click Camera to start training</span>
             </div>
             <div class="cam-indicator" id="camIndicator">
               <span class="cam-dot"></span>
@@ -41,16 +41,38 @@
 
         <div class="feedback-section" id="feedbackSection">
           <div class="feedback-header">
-            <h3>🤖 AI Live Feedback</h3>
+            <h3>🤖 Coach Feedback</h3>
             <span class="feedback-status" id="feedbackStatus">⏳ Waiting...</span>
           </div>
           <div class="feedback-body">
-            <div class="feedback-main" id="feedbackMain">
-              <span class="fb-label">—</span>
-              <span class="fb-conf">—</span>
+            <div class="fb-row">
+              <span class="fb-label-sm">Current</span>
+              <div class="feedback-main" id="feedbackMain">
+                <span class="fb-label">—</span>
+                <span class="fb-conf">—</span>
+              </div>
             </div>
-            <div class="feedback-bars" id="feedbackBars"></div>
+            <div class="fb-row">
+              <span class="fb-label-sm">Next →</span>
+              <div class="feedback-next" id="feedbackNext">
+                <span class="fb-next-label">—</span>
+                <span class="fb-next-icon">🎯</span>
+              </div>
+            </div>
           </div>
+
+          <div class="fb-match">
+            <div class="match-header">
+              <span>Pose Match</span>
+              <span class="match-pct" id="matchPct">0%</span>
+            </div>
+            <div class="match-bar-track">
+              <div class="match-bar-fill" id="matchBarFill"></div>
+            </div>
+          </div>
+
+          <div class="feedback-bars" id="feedbackBars"></div>
+
           <div class="feedback-stream" id="feedbackStream">
             <span class="stream-empty">Real-time analysis will appear here...</span>
           </div>
@@ -59,7 +81,7 @@
 
       <div class="right-panel">
         <div class="panel-card">
-          <h3>🎯 Current Prediction</h3>
+          <h3>🎯 Current Action</h3>
           <div class="prediction-result" id="predictionResult">
             <span class="pred-label">—</span>
             <span class="pred-conf">—</span>
@@ -76,9 +98,9 @@
         </div>
 
         <div class="panel-card">
-          <h3>⏱ Prediction History</h3>
+          <h3>⏱ History</h3>
           <div class="history-list" id="historyList">
-            <span class="history-empty">No predictions yet</span>
+            <span class="history-empty">No data yet</span>
           </div>
         </div>
       </div>
