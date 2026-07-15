@@ -29,6 +29,9 @@ const feedbackBars = $('feedbackBars'), feedbackStream = $('feedbackStream');
 const matchPct = $('matchPct'), matchBarFill = $('matchBarFill');
 const suggestionText = $('suggestionText');
 const suggestionBody = $('suggestionBody');
+const skeletonCanvas = $('skeletonCanvas');
+const skeletonCtx = skeletonCanvas.getContext('2d');
+const skeletonLabel = $('skeletonLabel');
 
 let streamItems = [];
 
@@ -36,7 +39,14 @@ function resizeCanvas() {
   const r = canvas.parentElement.getBoundingClientRect();
   canvas.width = r.width; canvas.height = r.height;
 }
+
+function resizeSkeletonCanvas() {
+  const rect = skeletonCanvas.getBoundingClientRect();
+  skeletonCanvas.width = rect.width;
+  skeletonCanvas.height = rect.height;
+}
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', resizeSkeletonCanvas);
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -381,6 +391,75 @@ function drawAll(detectedKps, targetKps) {
   }
 }
 
+function drawPureGhost(kps, actionName) {
+  const c = skeletonCanvas, cx = skeletonCtx;
+  cx.clearRect(0, 0, c.width, c.height);
+  skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
+
+  if (!kps || kps.length < 17) return;
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const k of kps) {
+    if (k.x != null && k.y != null) {
+      minX = Math.min(minX, k.x); maxX = Math.max(maxX, k.x);
+      minY = Math.min(minY, k.y); maxY = Math.max(maxY, k.y);
+    }
+  }
+
+  const bw = maxX - minX || 1, bh = maxY - minY || 1;
+  const pad = 0.15;
+  const scale = Math.min(c.width / (bw * (1 + pad * 2)), c.height / (bh * (1 + pad * 2)));
+  const ox = (c.width - bw * scale) / 2;
+  const oy = (c.height - bh * scale) / 2;
+
+  const tx = kps.map(k => ({
+    x: (k.x - minX) * scale + ox, y: (k.y - minY) * scale + oy,
+    score: 1, confidence: 1
+  }));
+
+  cx.lineCap = 'round';
+  cx.lineJoin = 'round';
+
+  const bodyH = dist(mid(tx[5], tx[6]), mid(tx[11], tx[12]));
+  const refW = Math.max(12, bodyH * 0.25);
+  const headR = Math.max(6, bodyH * 0.15);
+
+  const torso = [tx[5], tx[6], tx[12], tx[11]];
+  if (torso.every(p => p)) {
+    cx.beginPath();
+    cx.moveTo(tx[5].x, tx[5].y);
+    cx.lineTo(tx[6].x, tx[6].y);
+    cx.lineTo(tx[12].x, tx[12].y);
+    cx.lineTo(tx[11].x, tx[11].y);
+    cx.closePath();
+    cx.fillStyle = 'rgba(53, 132, 228, 0.08)';
+    cx.fill();
+    cx.strokeStyle = 'rgba(53, 132, 228, 0.5)';
+    cx.lineWidth = 2;
+    cx.stroke();
+  }
+
+  for (const limb of LIMB_PAIRS) {
+    const a = tx[limb.a], b = tx[limb.b];
+    if (!a || !b) continue;
+    const lw = refW * limb.w * 0.5;
+    cx.beginPath();
+    cx.moveTo(a.x, a.y);
+    cx.lineTo(b.x, b.y);
+    cx.strokeStyle = 'rgba(53, 132, 228, 0.6)';
+    cx.lineWidth = Math.max(2.5, lw);
+    cx.stroke();
+  }
+
+  cx.beginPath();
+  cx.arc(tx[0].x, tx[0].y, headR * 0.8, 0, Math.PI * 2);
+  cx.fillStyle = 'rgba(53, 132, 228, 0.12)';
+  cx.fill();
+  cx.strokeStyle = 'rgba(53, 132, 228, 0.45)';
+  cx.lineWidth = 2;
+  cx.stroke();
+}
+
 function renderBars(container, allActions) {
   container.innerHTML = '';
   for (const [action, conf] of Object.entries(allActions).sort((a, b) => b[1] - a[1])) {
@@ -523,6 +602,8 @@ function displayPrediction(data, kps) {
   renderBars($('confidenceBars'), data.all_actions);
 
   suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
+
+  drawPureGhost(state.targetKeypoints, nextAction);
 }
 
 function addHistory(action, confidence) {
@@ -627,10 +708,13 @@ function resetAll() {
   $('predictionResult').innerHTML = '<span class="pred-label">—</span><span class="pred-conf">—</span>';
   $('confidenceBars').innerHTML = ''; renderHistory();
   suggestionBody.innerHTML = '<div class="suggestion-icon">🧘</div><div class="suggestion-text" id="suggestionText">Stand in frame to receive coaching tips</div>';
+  skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+  skeletonLabel.textContent = 'Waiting...';
   placeholder.style.display = 'flex';
 }
 
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);
 resizeCanvas();
+resizeSkeletonCanvas();
 loadModel();

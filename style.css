@@ -574,6 +574,38 @@ main {
 .suggestion-text .match-ok { color: var(--yellow); font-weight: 700; }
 .suggestion-text .match-bad { color: var(--red); font-weight: 700; }
 
+/* Skeleton Card */
+.skeleton-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.skeleton-wrapper canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+  background: #0d1117;
+  border-radius: 8px;
+}
+
+.skeleton-label {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 14px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+  font-weight: 700;
+  color: #f5c518;
+  letter-spacing: 0.3px;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
