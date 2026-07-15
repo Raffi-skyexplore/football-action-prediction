@@ -408,6 +408,10 @@ function drawAll(detectedKps, targetKps) {
 
 function drawPureGhost(kps, actionName) {
   const c = skeletonCanvas, cx = skeletonCtx;
+  const rect = c.getBoundingClientRect();
+  if (c.width !== rect.width || c.height !== rect.height) {
+    c.width = rect.width; c.height = rect.height;
+  }
   cx.clearRect(0, 0, c.width, c.height);
   skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
 
