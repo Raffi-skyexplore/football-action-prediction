@@ -659,6 +659,109 @@ main {
   letter-spacing: 0.3px;
 }
 
+/* Settings Panel */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: none;
+}
+.settings-overlay.open { display: block; }
+
+.settings-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  z-index: 210;
+  display: none;
+  overflow: hidden;
+}
+.settings-panel.open { display: block; }
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.settings-close:hover { background: var(--accent-subtle); }
+
+.settings-body { padding: 14px 20px 20px; }
+
+.setting-group { margin-bottom: 6px; }
+
+.setting-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.setting-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setting-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.setting-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.setting-option.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.setting-option .setting-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -30,6 +30,33 @@
       </div>
     </nav>
 
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-header">
+        <h3>⚙️ Settings</h3>
+        <button class="settings-close" id="settingsClose">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-group">
+          <label class="setting-label">AI Model</label>
+          <div class="setting-options" id="modelOptions">
+            <div class="setting-option" data-model="lightning">
+              <strong>MoveNet Lightning</strong>
+              <span class="setting-sub">Fast &middot; Lower accuracy</span>
+            </div>
+            <div class="setting-option" data-model="thunder">
+              <strong>MoveNet Thunder</strong>
+              <span class="setting-sub">Balanced &middot; Higher accuracy</span>
+            </div>
+            <div class="setting-option" data-model="posenet">
+              <strong>PoseNet</strong>
+              <span class="setting-sub">Legacy &middot; Mobile-friendly</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-overlay" id="settingsOverlay"></div>
+
     <main>
       <div class="left-panel">
         <div class="card video-section">

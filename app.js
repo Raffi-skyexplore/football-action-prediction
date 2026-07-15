@@ -17,7 +17,8 @@ const state = {
   animFrameId: null, mediaStream: null, detectInterval: null,
   lastKeypoints: null, targetKeypoints: null, targetAction: null,
   matchScore: 0, prevAction: null,
-  role: 'player'
+  role: 'player',
+  modelType: 'lightning'
 };
 
 const $ = id => document.getElementById(id);
@@ -706,13 +707,41 @@ async function detectPose() {
   state.predicting = false;
 }
 
+const MODEL_CONFIGS = {
+  lightning: {
+    model: 'MoveNet',
+    config: { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
+  },
+  thunder: {
+    model: 'MoveNet',
+    config: { modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER }
+  },
+  posenet: {
+    model: 'PoseNet',
+    config: {
+      architecture: 'MobileNetV1',
+      outputStride: 16,
+      inputResolution: 257,
+      multiplier: 0.75
+    }
+  }
+};
+
 async function loadModel() {
   modelLoading.classList.add('visible');
   try {
-    state.detector = await poseDetection.createDetector(
-      poseDetection.SupportedModels.MoveNet,
-      { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-    );
+    const cfg = MODEL_CONFIGS[state.modelType];
+    if (cfg.model === 'MoveNet') {
+      state.detector = await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        cfg.config
+      );
+    } else {
+      state.detector = await poseDetection.createDetector(
+        poseDetection.SupportedModels.PoseNet,
+        cfg.config
+      );
+    }
     state.modelReady = true;
   } catch (err) { console.error('Model load failed:', err); }
   modelLoading.classList.remove('visible');
@@ -776,6 +805,8 @@ function resetAll() {
 
 const roleBadge = $('roleBadge');
 const userDropdown = $('userDropdown');
+const settingsPanel = $('settingsPanel');
+const settingsOverlay = $('settingsOverlay');
 
 function setRole(role) {
   state.role = role;
@@ -793,6 +824,42 @@ $('btnUser').addEventListener('click', (e) => {
 });
 
 document.addEventListener('click', () => userDropdown.classList.remove('open'));
+
+function openSettings() {
+  settingsPanel.classList.add('open');
+  settingsOverlay.classList.add('open');
+}
+
+function closeSettings() {
+  settingsPanel.classList.remove('open');
+  settingsOverlay.classList.remove('open');
+}
+
+$('btnSettings').addEventListener('click', openSettings);
+$('settingsClose').addEventListener('click', closeSettings);
+settingsOverlay.addEventListener('click', closeSettings);
+
+function highlightModelOption(opt) {
+  document.querySelectorAll('.setting-option').forEach(el => el.classList.remove('active'));
+  if (opt) opt.classList.add('active');
+}
+
+document.querySelectorAll('.setting-option').forEach(el => {
+  el.addEventListener('click', async () => {
+    const model = el.dataset.model;
+    if (model === state.modelType) return;
+    const wasActive = state.isCamera;
+    if (wasActive) stopCamera();
+    state.modelType = model;
+    state.modelReady = false;
+    state.detector = null;
+    highlightModelOption(el);
+    await loadModel();
+    if (wasActive && state.modelReady) startCamera();
+  });
+});
+
+highlightModelOption(document.querySelector(`.setting-option[data-model="${state.modelType}"]`));
 
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);
