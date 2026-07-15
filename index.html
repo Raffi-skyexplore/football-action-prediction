@@ -10,8 +10,8 @@
 <body>
   <div id="app">
     <header>
-      <h1>⚽ Football Next-Action Prediction</h1>
-      <p class="subtitle">Pure Vision · Pose-Based Action Forecasting</p>
+      <h1>⚽ Live Motion Capture</h1>
+      <p class="subtitle">Real-time Pose-Based Action Forecasting</p>
     </header>
 
     <main>
@@ -21,24 +21,34 @@
             <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
             <div class="placeholder" id="placeholder">
-              <span class="placeholder-icon" id="placeholderIcon">🏃</span>
-              <span id="placeholderText">Upload video/image or click Camera</span>
+              <span class="placeholder-icon">🏃</span>
+              <span>Click Camera to start live motion capture</span>
             </div>
             <div class="cam-indicator" id="camIndicator">
               <span class="cam-dot"></span>
               <span>LIVE</span>
             </div>
-            <div class="snap-indicator" id="snapIndicator" hidden>
-              <span>📸 SNAPSHOT</span>
-            </div>
           </div>
           <div class="controls">
-            <label class="btn" for="fileInput">📁 Upload</label>
-            <input type="file" id="fileInput" accept="video/*,image/*" hidden />
             <button class="btn" id="btnCamera">📷 Camera</button>
-            <button class="btn btn-capture" id="btnCapture" hidden>📸 Capture</button>
-            <button class="btn" id="btnPredict" disabled>🔮 Predict</button>
             <button class="btn btn-secondary" id="btnReset">↺ Reset</button>
+          </div>
+        </div>
+
+        <div class="feedback-section" id="feedbackSection">
+          <div class="feedback-header">
+            <h3>🤖 AI Live Feedback</h3>
+            <span class="feedback-status" id="feedbackStatus">⏳ Waiting...</span>
+          </div>
+          <div class="feedback-body">
+            <div class="feedback-main" id="feedbackMain">
+              <span class="fb-label">—</span>
+              <span class="fb-conf">—</span>
+            </div>
+            <div class="feedback-bars" id="feedbackBars"></div>
+          </div>
+          <div class="feedback-stream" id="feedbackStream">
+            <span class="stream-empty">Real-time analysis will appear here...</span>
           </div>
         </div>
       </div>

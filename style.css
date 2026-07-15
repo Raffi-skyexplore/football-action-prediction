@@ -46,6 +46,7 @@ main {
 .left-panel {
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
 .video-section {
@@ -134,25 +135,11 @@ main {
   color: #e2e8f0;
 }
 
-.btn-small {
-  padding: 6px 14px;
-  font-size: 12px;
-  border-radius: 6px;
-}
-
-.btn-camera {
-  background: #059669;
-}
-
-.btn-camera:hover {
-  background: #047857;
-}
-
-.btn-camera.active {
+.btn-camera-active {
   background: #dc2626;
 }
 
-.btn-camera.active:hover {
+.btn-camera-active:hover {
   background: #b91c1c;
 }
 
@@ -181,35 +168,159 @@ main {
   animation: blink 1s steps(2, jump-none) infinite;
 }
 
-.snap-indicator {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 10;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fbbf24;
-  letter-spacing: 1px;
-}
-
-.btn-capture {
-  background: #059669;
-}
-
-.btn-capture:hover {
-  background: #047857;
-}
-
 @keyframes blink {
   from { opacity: 1; }
   to { opacity: 0; }
 }
 
+/* Feedback Section */
+.feedback-section {
+  background: #111827;
+  border-radius: 16px;
+  border: 1px solid #1e293b;
+  padding: 18px;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feedback-section.visible {
+  display: flex;
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feedback-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.feedback-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.feedback-status.analyzing {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.feedback-status.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.feedback-body {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.feedback-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.fb-label {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.fb-conf {
+  font-size: 20px;
+  font-weight: 700;
+  color: #22c55e;
+}
+
+.feedback-bars .conf-bar-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.feedback-bars .conf-bar-label {
+  color: #94a3b8;
+  text-align: right;
+}
+
+.feedback-bars .conf-bar-track {
+  height: 8px;
+  background: #1e293b;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.feedback-bars .conf-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.feedback-bars .conf-bar-value {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.feedback-stream {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #0f172a;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.stream-empty {
+  color: #475569;
+  font-style: italic;
+}
+
+.stream-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.stream-item:last-child {
+  border-bottom: none;
+}
+
+.stream-time {
+  color: #475569;
+  font-family: monospace;
+  font-size: 11px;
+  min-width: 65px;
+}
+
+.stream-action {
+  font-weight: 600;
+}
+
+.stream-conf {
+  color: #64748b;
+}
+
+/* Right Panel */
 .right-panel {
   display: flex;
   flex-direction: column;
@@ -250,13 +361,7 @@ main {
   color: #22c55e;
 }
 
-.confidence-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.conf-bar-row {
+.confidence-bars .conf-bar-row {
   display: grid;
   grid-template-columns: 80px 1fr 40px;
   align-items: center;
@@ -264,25 +369,25 @@ main {
   font-size: 13px;
 }
 
-.conf-bar-label {
+.confidence-bars .conf-bar-row .conf-bar-label {
   color: #94a3b8;
   text-align: right;
 }
 
-.conf-bar-track {
+.confidence-bars .conf-bar-row .conf-bar-track {
   height: 8px;
   background: #1e293b;
   border-radius: 4px;
   overflow: hidden;
 }
 
-.conf-bar-fill {
+.confidence-bars .conf-bar-row .conf-bar-fill {
   height: 100%;
   border-radius: 4px;
   transition: width 0.4s ease;
 }
 
-.conf-bar-value {
+.confidence-bars .conf-bar-row .conf-bar-value {
   color: #64748b;
   font-size: 12px;
   font-weight: 600;
