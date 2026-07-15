@@ -24,6 +24,8 @@ const state = {
   sourceLoaded: false,
   isVideo: false,
   isCamera: false,
+  hasSnapshot: false,
+  snapshotData: null,
   predicting: false,
   predictionHistory: [],
   apiUrl: 'http://localhost:8000/predict',
@@ -42,7 +44,9 @@ const fileInput = document.getElementById('fileInput');
 const btnPredict = document.getElementById('btnPredict');
 const btnReset = document.getElementById('btnReset');
 const btnCamera = document.getElementById('btnCamera');
+const btnCapture = document.getElementById('btnCapture');
 const camIndicator = document.getElementById('camIndicator');
+const snapIndicator = document.getElementById('snapIndicator');
 const btnTestApi = document.getElementById('btnTestApi');
 const apiUrlInput = document.getElementById('apiUrl');
 const apiStatus = document.getElementById('apiStatus');
@@ -55,10 +59,32 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 
-function drawSkeleton(keypoints) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawPlaceholder(visible) {
+  placeholder.style.display = visible ? 'flex' : 'none';
+}
 
+function drawCapturedFrame() {
+  if (!state.snapshotData) return;
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const w = canvas.width, h = canvas.height;
+    const scale = Math.min(w / img.width, h / img.height);
+    const ox = (w - img.width * scale) / 2;
+    const oy = (h - img.height * scale) / 2;
+    ctx.drawImage(img, ox, oy, img.width * scale, img.height * scale);
+  };
+  img.src = state.snapshotData;
+}
+
+function drawSkeleton(keypoints) {
   if (!keypoints || keypoints.length === 0) return;
+
+  if (state.hasSnapshot && state.snapshotData) {
+    drawCapturedFrame();
+  } else {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
   const w = canvas.width;
   const h = canvas.height;
@@ -109,10 +135,6 @@ function drawSkeleton(keypoints) {
   document.getElementById('kpConf').textContent = (avgConf * 100).toFixed(1) + '%';
 }
 
-function drawPlaceholder(visible) {
-  placeholder.style.display = visible ? 'flex' : 'none';
-}
-
 async function startCamera() {
   if (state.mediaStream) return;
   try {
@@ -130,15 +152,17 @@ async function startCamera() {
       video.play();
       drawPlaceholder(false);
       resizeCanvas();
-      btnPredict.disabled = false;
+      btnPredict.disabled = true;
+      btnCapture.hidden = false;
       animateFrame();
     };
 
     btnCamera.textContent = '⏹ Stop Cam';
     btnCamera.classList.add('active');
     camIndicator.style.display = 'flex';
+    snapIndicator.style.display = 'none';
     placeholderIcon.textContent = '📷';
-    placeholderText.textContent = 'Camera active';
+    placeholderText.textContent = 'Camera active — tap Capture';
   } catch (err) {
     console.error('Camera access denied:', err);
     alert('Camera access denied. Please allow camera permissions.');
@@ -146,6 +170,10 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  if (state.animFrameId) {
+    cancelAnimationFrame(state.animFrameId);
+    state.animFrameId = null;
+  }
   if (state.mediaStream) {
     state.mediaStream.getTracks().forEach(t => t.stop());
     state.mediaStream = null;
@@ -157,6 +185,34 @@ function stopCamera() {
   btnCamera.textContent = '📷 Camera';
   btnCamera.classList.remove('active');
   camIndicator.style.display = 'none';
+}
+
+function captureSnapshot() {
+  if (!state.isCamera || !state.mediaStream) return;
+
+  const c = document.createElement('canvas');
+  c.width = video.videoWidth || 1280;
+  c.height = video.videoHeight || 720;
+  const cx = c.getContext('2d');
+  cx.drawImage(video, 0, 0, c.width, c.height);
+  state.snapshotData = c.toDataURL('image/jpeg', 0.95);
+  state.hasSnapshot = true;
+
+  video.pause();
+  if (state.animFrameId) {
+    cancelAnimationFrame(state.animFrameId);
+    state.animFrameId = null;
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawCapturedFrame();
+
+  btnCapture.hidden = true;
+  btnPredict.disabled = false;
+  camIndicator.style.display = 'none';
+  snapIndicator.style.display = 'flex';
+  placeholderIcon.textContent = '📸';
+  placeholderText.textContent = 'Snapshot captured — tap Predict';
 }
 
 function generateMockKeypoints() {
@@ -291,7 +347,12 @@ async function callPredictAPI(imageData) {
 }
 
 function captureFrame() {
-  if ((state.isVideo && video.paused) || !video.videoWidth) return null;
+  if ((state.isVideo && video.paused && !state.hasSnapshot) || !video.videoWidth) return null;
+
+  if (state.hasSnapshot && state.snapshotData) {
+    return state.snapshotData;
+  }
+
   const c = document.createElement('canvas');
   c.width = video.videoWidth || 640;
   c.height = video.videoHeight || 480;
@@ -314,6 +375,16 @@ async function runPrediction() {
     return;
   }
 
+  if (!state.hasSnapshot && state.isCamera) {
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth || 1280;
+    c.height = video.videoHeight || 720;
+    const cx = c.getContext('2d');
+    cx.drawImage(video, 0, 0, c.width, c.height);
+    state.snapshotData = c.toDataURL('image/jpeg', 0.95);
+    state.hasSnapshot = true;
+  }
+
   let result = await callPredictAPI(imageData);
 
   if (!result) {
@@ -321,7 +392,6 @@ async function runPrediction() {
   }
 
   displayPrediction(result);
-  drawSkeleton(result.keypoints);
 
   state.predicting = false;
   btnPredict.disabled = false;
@@ -361,6 +431,10 @@ function handleFile(file) {
     state.animFrameId = null;
   }
   if (state.isCamera) stopCamera();
+  state.hasSnapshot = false;
+  state.snapshotData = null;
+  btnCapture.hidden = true;
+  snapIndicator.style.display = 'none';
 
   const url = URL.createObjectURL(file);
   state.isVideo = file.type.startsWith('video/');
@@ -410,8 +484,12 @@ function resetAll() {
   state.sourceLoaded = false;
   state.isVideo = false;
   state.predicting = false;
+  state.hasSnapshot = false;
+  state.snapshotData = null;
   state.predictionHistory = [];
   btnPredict.disabled = true;
+  btnCapture.hidden = true;
+  snapIndicator.style.display = 'none';
   drawPlaceholder(true);
   placeholderIcon.textContent = '🏃';
   placeholderText.textContent = 'Upload video/image or click Camera';
@@ -443,6 +521,8 @@ btnCamera.addEventListener('click', () => {
   if (state.isCamera) { stopCamera(); resetAll(); }
   else { startCamera(); }
 });
+
+btnCapture.addEventListener('click', captureSnapshot);
 btnPredict.addEventListener('click', runPrediction);
 btnReset.addEventListener('click', resetAll);
 btnTestApi.addEventListener('click', testApiConnection);

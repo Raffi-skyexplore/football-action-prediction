@@ -28,11 +28,15 @@
               <span class="cam-dot"></span>
               <span>LIVE</span>
             </div>
+            <div class="snap-indicator" id="snapIndicator" hidden>
+              <span>📸 SNAPSHOT</span>
+            </div>
           </div>
           <div class="controls">
             <label class="btn" for="fileInput">📁 Upload</label>
             <input type="file" id="fileInput" accept="video/*,image/*" hidden />
             <button class="btn" id="btnCamera">📷 Camera</button>
+            <button class="btn btn-capture" id="btnCapture" hidden>📸 Capture</button>
             <button class="btn" id="btnPredict" disabled>🔮 Predict</button>
             <button class="btn btn-secondary" id="btnReset">↺ Reset</button>
           </div>

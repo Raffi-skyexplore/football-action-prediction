@@ -181,6 +181,30 @@ main {
   animation: blink 1s steps(2, jump-none) infinite;
 }
 
+.snap-indicator {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 1px;
+}
+
+.btn-capture {
+  background: #059669;
+}
+
+.btn-capture:hover {
+  background: #047857;
+}
+
 @keyframes blink {
   from { opacity: 1; }
   to { opacity: 0; }
