@@ -6,26 +6,32 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>Football Action Coach</title>
+  <title>PoseCoach</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20260715" />
+  <link rel="stylesheet" href="style.css?v=20260715b" />
 </head>
 <body>
   <div id="app">
-    <header>
-      <h1>★ LIVE POSE COACH ★</h1>
-      <p class="subtitle">UEFA CHAMPIONS LEAGUE · AI Motion Training</p>
-    </header>
+    <nav class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-logo">⚽</span>
+        <span class="topbar-title">PoseCoach</span>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn" id="btnSettings" title="Settings">⚙️</button>
+        <button class="topbar-btn" id="btnUser" title="User">👤</button>
+      </div>
+    </nav>
 
     <main>
       <div class="left-panel">
-        <div class="video-section">
+        <div class="card video-section">
           <div class="canvas-wrapper">
             <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
             <div class="placeholder" id="placeholder">
               <span class="placeholder-icon">🏃</span>
-              <span>Activate Camera · Begin Champions League Training</span>
+              <span>Activate Camera to start training</span>
             </div>
             <div class="cam-indicator" id="camIndicator">
               <span class="cam-dot"></span>
@@ -37,15 +43,15 @@
             </div>
           </div>
           <div class="controls">
-            <button class="btn" id="btnCamera">📷 Camera</button>
-            <button class="btn btn-secondary" id="btnReset">↺ Reset</button>
+            <button class="btn btn-primary" id="btnCamera">📷 Camera</button>
+            <button class="btn btn-ghost" id="btnReset">↺ Reset</button>
           </div>
         </div>
 
-        <div class="feedback-section" id="feedbackSection">
+        <div class="card feedback-section" id="feedbackSection">
           <div class="feedback-header">
             <h3>🤖 Coach Feedback</h3>
-            <span class="feedback-status" id="feedbackStatus">⏳ Waiting...</span>
+            <span class="badge" id="feedbackStatus">⏳ Waiting</span>
           </div>
           <div class="feedback-body">
             <div class="fb-row">
@@ -77,13 +83,13 @@
           <div class="feedback-bars" id="feedbackBars"></div>
 
           <div class="feedback-stream" id="feedbackStream">
-            <span class="stream-empty">Awaiting Champions League action...</span>
+            <span class="stream-empty">No data yet</span>
           </div>
         </div>
       </div>
 
       <div class="right-panel">
-        <div class="panel-card">
+        <div class="card">
           <h3>🎯 Current Action</h3>
           <div class="prediction-result" id="predictionResult">
             <span class="pred-label">—</span>
@@ -92,7 +98,7 @@
           <div class="confidence-bars" id="confidenceBars"></div>
         </div>
 
-        <div class="panel-card">
+        <div class="card">
           <h3>📊 Pose Keypoints</h3>
           <div class="keypoint-stats" id="keypointStats">
             <span>Detected: <strong id="kpCount">0</strong></span>
@@ -100,18 +106,18 @@
           </div>
         </div>
 
-        <div class="panel-card">
+        <div class="card">
           <h3>⏱ History</h3>
           <div class="history-list" id="historyList">
             <span class="history-empty">No data yet</span>
           </div>
         </div>
 
-        <div class="panel-card">
+        <div class="card">
           <h3>💡 AI Coaching Tip</h3>
           <div class="suggestion-body" id="suggestionBody">
-            <div class="suggestion-icon">🧘</div>
-            <div class="suggestion-text" id="suggestionText">Stand in frame to receive coaching tips</div>
+            <span class="suggestion-icon">🧘</span>
+            <span class="suggestion-text">Stand in frame to receive coaching tips</span>
           </div>
         </div>
       </div>
@@ -120,6 +126,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
-  <script src="app.js?v=20260715"></script>
+  <script src="app.js?v=20260715b"></script>
 </body>
 </html>
