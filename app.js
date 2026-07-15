@@ -539,7 +539,7 @@ function resetAll() {
   feedbackNext.innerHTML = '<span class="fb-next-label">—</span><span class="fb-next-icon">🎯</span>';
   feedbackBars.innerHTML = ''; matchPct.textContent = '0%'; matchBarFill.style.width = '0%';
   matchPct.style.color = '#94a3b8'; matchBarFill.style.background = '#3b82f6';
-  feedbackStream.innerHTML = '<span class="stream-empty">Real-time analysis will appear here...</span>';
+  feedbackStream.innerHTML = '<span class="stream-empty">Awaiting Champions League action...</span>';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   $('kpCount').textContent = '0'; $('kpConf').textContent = '—';
   $('predictionResult').innerHTML = '<span class="pred-label">—</span><span class="pred-conf">—</span>';
