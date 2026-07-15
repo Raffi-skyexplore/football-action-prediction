@@ -95,72 +95,124 @@ class ActionClassifier {
 
 const classifier = new ActionClassifier();
 
+function pt(x, y) { return { x, y }; }
+function add(a, b) { return { x: a.x + b.x, y: a.y + b.y }; }
+function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y }; }
+function scale(v, s) { return { x: v.x * s, y: v.y * s }; }
+function norm(v) { const l = Math.hypot(v.x, v.y); return l ? { x: v.x / l, y: v.y / l } : pt(0, 0); }
+function rot(v, a) { const c = Math.cos(a), s = Math.sin(a); return { x: v.x * c - v.y * s, y: v.x * s + v.y * c }; }
+
+function measureBody(kps) {
+  return {
+    torsoW: dist(kps[5], kps[6]),
+    torsoH: dist(mid(kps[5], kps[6]), mid(kps[11], kps[12])),
+    lUpperArm: dist(kps[5], kps[7]), lForearm: dist(kps[7], kps[9]),
+    rUpperArm: dist(kps[6], kps[8]), rForearm: dist(kps[8], kps[10]),
+    lThigh: dist(kps[11], kps[13]), lShin: dist(kps[13], kps[15]),
+    rThigh: dist(kps[12], kps[14]), rShin: dist(kps[14], kps[16]),
+    lHip: kps[11], rHip: kps[12], lFoot: kps[15], rFoot: kps[16],
+    head: kps[0]
+  };
+}
+
 function generateTargetPose(kps, nextAction) {
   if (!kps || kps.length < 17) return null;
   const t = kps.map(k => ({ x: k.x, y: k.y, confidence: 1 }));
+  const b = measureBody(kps);
+  if (b.torsoH < 1) return null;
+
   const sm = mid(t[5], t[6]), hm = mid(t[11], t[12]);
-  const bh = dist(sm, hm);
-  if (bh < 1) return null;
+  const faceDir = t[0].x > hm.x ? 1 : -1;
 
   switch (nextAction) {
     case 'shoot': {
-      const side = t[16].y < t[15].y ? 1 : -1;
-      const knee = side > 0 ? 14 : 13, ankle = side > 0 ? 16 : 15;
-      const hip = side > 0 ? 12 : 11, shoulder = side > 0 ? 6 : 5;
-      const oppShoulder = side > 0 ? 5 : 6, oppElbow = side > 0 ? 7 : 8, oppWrist = side > 0 ? 9 : 10;
-      const baseKnee = side > 0 ? 13 : 14, baseAnkle = side > 0 ? 15 : 16;
-      t[knee].x = t[hip].x + (t[hip].x - t[baseKnee].x) * 0.15;
-      t[knee].y = t[hip].y - bh * 0.35;
-      t[ankle].x = t[hip].x + (t[hip].x - t[baseAnkle].x) * 0.3;
-      t[ankle].y = t[hip].y - bh * 0.1;
-      t[oppElbow].x = t[oppShoulder].x - (t[oppShoulder].x - hm.x) * 0.6;
-      t[oppElbow].y = t[oppShoulder].y + bh * 0.05;
-      t[oppWrist].x = t[oppShoulder].x - (t[oppShoulder].x - hm.x) * 1.1;
-      t[oppWrist].y = t[oppShoulder].y + bh * 0.15;
+      const kickSide = (b.rFoot.y > b.lFoot.y) === (faceDir > 0) ? 1 : -1;
+      const kIdx = kickSide > 0 ? 14 : 13, aIdx = kickSide > 0 ? 16 : 15;
+      const hIdx = kickSide > 0 ? 12 : 11;
+      const sIdx = kickSide > 0 ? 6 : 5, eIdx = kickSide > 0 ? 8 : 7, wIdx = kickSide > 0 ? 10 : 9;
+      const oppS = kickSide > 0 ? 5 : 6, oppE = kickSide > 0 ? 7 : 8, oppW = kickSide > 0 ? 9 : 10;
+      const thighLen = kickSide > 0 ? b.rThigh : b.lThigh;
+      const shinLen = kickSide > 0 ? b.rShin : b.lShin;
+      const oppThigh = kickSide > 0 ? b.lThigh : b.rThigh;
+      const oppShin = kickSide > 0 ? b.lShin : b.rShin;
+
+      const hipPos = t[hIdx];
+      const liftAngle = -1.0 * faceDir;
+      t[kIdx] = add(hipPos, { x: Math.cos(liftAngle) * thighLen * 0.85, y: Math.sin(liftAngle) * thighLen * 0.7 });
+      const kneeDir = norm(sub(t[kIdx], hipPos));
+      const shinAngle = Math.atan2(kneeDir.y, kneeDir.x) + 0.4 * faceDir;
+      t[aIdx] = add(t[kIdx], { x: Math.cos(shinAngle) * shinLen * 0.8, y: Math.sin(shinAngle) * shinLen * 0.6 });
+
+      const oppHip = kickSide > 0 ? t[11] : t[12];
+      t[oppE] = add(t[oppS], rot(scale(norm(sub(t[oppS], hm)), b.lUpperArm), -0.3 * faceDir));
+      const oppElbowDir = norm(sub(t[oppE], t[oppS]));
+      const oppForeAngle = Math.atan2(oppElbowDir.y, oppElbowDir.x) - 0.5 * faceDir;
+      t[oppW] = add(t[oppE], { x: Math.cos(oppForeAngle) * (kickSide > 0 ? b.lForearm : b.rForearm), y: Math.sin(oppForeAngle) * (kickSide > 0 ? b.lForearm : b.rForearm) * 0.7 });
       break;
     }
     case 'pass': {
-      for (const side of [-1, 1]) {
-        const s = side > 0 ? 6 : 5, e = side > 0 ? 8 : 7, w = side > 0 ? 10 : 9;
-        t[e].x = t[s].x + (t[s].x - hm.x) * 0.5;
-        t[e].y = t[s].y - bh * 0.05;
-        t[w].x = t[s].x + (t[s].x - hm.x) * 1.2;
-        t[w].y = t[s].y - bh * 0.02;
+      for (const sd of [-1, 1]) {
+        const s = sd > 0 ? 6 : 5, e = sd > 0 ? 8 : 7, w = sd > 0 ? 10 : 9;
+        const uaLen = sd > 0 ? b.rUpperArm : b.lUpperArm;
+        const faLen = sd > 0 ? b.rForearm : b.lForearm;
+        const dir = sd * faceDir;
+        const shoulder = t[s];
+        t[e] = add(shoulder, { x: Math.cos(dir * 0.3) * uaLen, y: Math.sin(dir * 0.3) * uaLen * 0.2 });
+        t[w] = add(t[e], { x: Math.cos(dir * 0.15) * faLen, y: Math.sin(dir * 0.15) * faLen * 0.15 });
       }
       break;
     }
     case 'dribble': {
-      const off = bh * 0.2;
-      for (let i = 5; i <= 16; i++) t[i].y += off;
-      t[7].y = t[5].y + bh * 0.25; t[9].y = t[5].y + bh * 0.5;
-      t[8].y = t[6].y + bh * 0.25; t[10].y = t[6].y + bh * 0.5;
-      t[13].y += bh * 0.1; t[14].y += bh * 0.1;
+      const droop = b.torsoH * 0.3;
+      for (let i = 5; i <= 12; i++) t[i].y += droop;
+      t[5].y += droop * 0.3; t[6].y += droop * 0.3;
+      t[11].y += droop * 0.9; t[12].y += droop * 0.9;
+      t[13].y = t[11].y + b.lThigh * 0.5; t[14].y = t[12].y + b.rThigh * 0.5;
+      t[15].y = t[13].y + b.lShin * 0.7; t[16].y = t[14].y + b.rShin * 0.7;
+      t[15].x = t[11].x; t[16].x = t[12].x;
+      t[7].y = t[5].y + b.lUpperArm * 0.4; t[8].y = t[6].y + b.rUpperArm * 0.4;
+      t[9].y = t[7].y + b.lForearm * 0.5; t[10].y = t[8].y + b.rForearm * 0.5;
+      t[9].x = t[7].x; t[10].x = t[8].x;
       break;
     }
     case 'run': {
-      const leanX = (sm.x - hm.x) * 1.5;
-      const offY = bh * 0.05;
-      for (let i = 0; i < 17; i++) { t[i].x += leanX * (1 - t[i].y / (hm.y + bh)); t[i].y += offY; }
-      t[7].x -= bh * 0.15; t[9].x -= bh * 0.3; t[7].y -= bh * 0.1; t[9].y -= bh * 0.1;
-      t[8].x += bh * 0.15; t[10].x += bh * 0.3; t[8].y += bh * 0.05; t[10].y += bh * 0.1;
-      t[13].x -= bh * 0.1; t[14].x += bh * 0.1;
+      const fwd = pt(faceDir * b.torsoH * 0.15, b.torsoH * 0.08);
+      for (let i = 0; i < 17; i++) t[i] = add(t[i], scale(fwd, 1 - i / 18));
+      t[7] = sub(t[7], pt(b.lUpperArm * 0.3, b.lUpperArm * 0.2));
+      t[9] = sub(t[9], pt(b.lForearm * 0.4, b.lForearm * 0.1));
+      t[8] = add(t[8], pt(b.rUpperArm * 0.3, -b.rUpperArm * 0.1));
+      t[10] = add(t[10], pt(b.rForearm * 0.4, -b.rForearm * 0.05));
+      t[13] = sub(t[13], pt(b.lThigh * 0.15, 0));
+      t[15] = sub(t[15], pt(b.lShin * 0.2, 0));
+      t[14] = add(t[14], pt(b.rThigh * 0.15, 0));
+      t[16] = add(t[16], pt(b.rShin * 0.2, 0));
       break;
     }
     case 'tackle': {
-      const side2 = t[16].x < t[15].x ? 1 : -1;
-      const extLeg = side2 > 0 ? 14 : 13, extAnkle = side2 > 0 ? 16 : 15;
-      const baseLeg = side2 > 0 ? 13 : 14, baseAnkle = side2 > 0 ? 15 : 16;
-      const extHip = side2 > 0 ? 12 : 11, baseHip = side2 > 0 ? 11 : 12;
-      const off2 = bh * 0.35;
-      for (let i = 5; i <= 16; i++) t[i].y += off2;
-      t[extLeg].x = t[extHip].x + (t[extHip].x - t[baseHip].x) * 1.2;
-      t[extLeg].y = t[extHip].y + bh * 0.3;
-      t[extAnkle].x = t[extHip].x + (t[extHip].x - t[baseHip].x) * 2.0;
-      t[extAnkle].y = t[extHip].y + bh * 0.7;
-      t[baseLeg].x = t[baseHip].x;
-      t[baseLeg].y = t[baseHip].y + bh * 0.4;
-      t[baseAnkle].x = t[baseHip].x;
-      t[baseAnkle].y = t[baseHip].y + bh * 0.8;
+      const extSide = b.rFoot.x < b.lFoot.x ? 1 : -1;
+      const eHip = extSide > 0 ? 12 : 11, eKnee = extSide > 0 ? 14 : 13, eAnkle = extSide > 0 ? 16 : 15;
+      const bHip = extSide > 0 ? 11 : 12, bKnee = extSide > 0 ? 13 : 14, bAnkle = extSide > 0 ? 15 : 16;
+      const eThigh = extSide > 0 ? b.rThigh : b.lThigh;
+      const eShin = extSide > 0 ? b.rShin : b.lShin;
+      const drop = b.torsoH * 0.35;
+
+      for (let i = 5; i <= 12; i++) t[i].y += drop;
+      t[11].y += drop * 0.5; t[12].y += drop * 0.5;
+      t[5].y += drop * 0.3; t[6].y += drop * 0.3;
+
+      const extendAngle = 0.6 * faceDir;
+      t[eKnee] = add(t[eHip], { x: Math.cos(extendAngle) * eThigh, y: Math.sin(extendAngle) * eThigh * 0.3 });
+      const extDir = norm(sub(t[eKnee], t[eHip]));
+      const extShinAngle = Math.atan2(extDir.y, extDir.x) + 0.2;
+      t[eAnkle] = add(t[eKnee], { x: Math.cos(extShinAngle) * eShin * 1.0, y: Math.sin(extShinAngle) * eShin * 0.3 });
+
+      t[bKnee] = add(t[bHip], { x: -faceDir * b.lThigh * 0.1, y: b.lThigh * 0.7 });
+      t[bAnkle] = add(t[bKnee], { x: 0, y: (extSide > 0 ? b.lShin : b.rShin) * 0.6 });
+
+      t[7] = add(t[5], scale(sub(t[5], hm), 0.6));
+      t[9] = add(t[7], scale(sub(t[7], t[5]), 0.8));
+      t[8] = add(t[6], scale(sub(t[6], hm), 0.6));
+      t[10] = add(t[8], scale(sub(t[8], t[6]), 0.8));
       break;
     }
     default: break;
