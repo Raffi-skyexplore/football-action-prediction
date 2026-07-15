@@ -493,37 +493,26 @@ function drawPitch() {
   function fx(v) { return pad + v * pw; }
   function fy(v) { return pad + v * ph; }
 
+  // --- Pitch base ---
   cx.fillStyle = '#2d7d3f';
   cx.fillRect(0, 0, w, h);
 
   const alt = '#3a8a4a';
   for (let r = 0; r < ph; r += 12) {
-    if ((Math.floor(r / 12) % 2) === 0) {
-      cx.fillStyle = (Math.floor(r / 12) % 4 < 2) ? alt : '#2d7d3f';
-    } else {
-      cx.fillStyle = (Math.floor(r / 12) % 4 < 2) ? '#2d7d3f' : alt;
-    }
+    cx.fillStyle = (Math.floor(r / 12) % 4 < 2) ? alt : '#2d7d3f';
     cx.fillRect(pad, pad + r, pw, 12);
   }
 
   cx.strokeStyle = 'rgba(255,255,255,0.6)';
   cx.lineWidth = 2;
-
   cx.strokeRect(pad, pad, pw, ph);
 
   const cx0 = fx(0.5);
-  cx.beginPath();
-  cx.moveTo(cx0, pad);
-  cx.lineTo(cx0, pad + ph);
-  cx.stroke();
-
-  cx.beginPath();
-  cx.arc(cx0, pad + ph * 0.5, ph * 0.15, 0, Math.PI * 2);
-  cx.stroke();
+  cx.beginPath(); cx.moveTo(cx0, pad); cx.lineTo(cx0, pad + ph); cx.stroke();
+  cx.beginPath(); cx.arc(cx0, pad + ph * 0.5, ph * 0.15, 0, Math.PI * 2); cx.stroke();
 
   const paTop = pad + ph * 0.12, paBot = pad + ph * 0.88;
   const paW = pw * 0.18;
-
   cx.strokeRect(fx(0) - paW, paTop, paW, paBot - paTop);
   cx.strokeRect(fx(1), paTop, paW, paBot - paTop);
 
@@ -533,21 +522,102 @@ function drawPitch() {
   cx.strokeRect(fx(1), pad + ph * 0.35, gW, ph * 0.3);
 
   const actions = state.actionPositions;
+  if (actions.length < 2) return;
+
+  // --- GNN movement graph (trajectory edges) ---
+  const edgeCount = Math.min(actions.length - 1, 80);
+  const edgeStart = actions.length - 1 - edgeCount;
+  for (let i = edgeStart; i < actions.length - 1; i++) {
+    const a = actions[i], b = actions[i + 1];
+    const age = (Date.now() - b.time) / 1000;
+    const alpha = Math.max(0.08, 1 - age / 90);
+    const x1 = fx(a.x), y1 = fy(a.y), x2 = fx(b.x), y2 = fy(b.y);
+    const ca = ACTION_COLORS[a.action] || '#64748b';
+    const cb = ACTION_COLORS[b.action] || '#64748b';
+
+    const grad = cx.createLinearGradient(x1, y1, x2, y2);
+    grad.addColorStop(0, ca + Math.round(alpha * 160).toString(16).padStart(2, '0'));
+    grad.addColorStop(1, cb + Math.round(alpha * 160).toString(16).padStart(2, '0'));
+
+    cx.beginPath();
+    cx.moveTo(x1, y1);
+    cx.lineTo(x2, y2);
+    cx.strokeStyle = grad;
+    cx.lineWidth = Math.max(1.5, 3 * alpha);
+    cx.stroke();
+  }
+
+  // --- Grad-CAM-style heatmap ---
+  const heatScale = 4;
+  const hw = Math.ceil(w / heatScale), hh = Math.ceil(h / heatScale);
+  const off = document.createElement('canvas');
+  off.width = hw; off.height = hh;
+  const ox = off.getContext('2d');
+
+  for (const a of actions) {
+    const age = (Date.now() - a.time) / 1000;
+    if (age > 120) continue;
+    const alpha = 1 - age / 120;
+    const px = (a.x * pw + pad) / heatScale;
+    const py = (a.y * ph + pad) / heatScale;
+    const r = Math.max(4, 14 * alpha);
+    const grad = ox.createRadialGradient(px, py, 0, px, py, r);
+    grad.addColorStop(0, `rgba(255,255,255,${alpha * 0.6})`);
+    grad.addColorStop(0.4, `rgba(255,200,50,${alpha * 0.35})`);
+    grad.addColorStop(1, `rgba(0,0,0,0)`);
+    ox.fillStyle = grad;
+    ox.beginPath();
+    ox.arc(px, py, r, 0, Math.PI * 2);
+    ox.fill();
+  }
+
+  const imgData = ox.getImageData(0, 0, hw, hh);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = d[i] / 255;
+    if (v < 0.02) { d[i + 3] = 0; continue; }
+    if (v < 0.3) {
+      const t = v / 0.3;
+      d[i] = 0; d[i + 1] = Math.round(80 + t * 120); d[i + 2] = Math.round(180 - t * 100);
+    } else if (v < 0.55) {
+      const t = (v - 0.3) / 0.25;
+      d[i] = Math.round(t * 180); d[i + 1] = 200; d[i + 2] = Math.round(80 - t * 60);
+    } else if (v < 0.75) {
+      const t = (v - 0.55) / 0.2;
+      d[i] = Math.round(180 + t * 75); d[i + 1] = Math.round(200 - t * 100); d[i + 2] = Math.round(20 - t * 10);
+    } else {
+      const t = Math.min(1, (v - 0.75) / 0.25);
+      d[i] = Math.round(255 - t * 40); d[i + 1] = Math.round(100 - t * 60); d[i + 2] = Math.round(10 - t * 5);
+    }
+    d[i + 3] = Math.round(Math.min(v * 200, 200));
+  }
+  ox.putImageData(imgData, 0, 0);
+
+  cx.save();
+  cx.globalAlpha = 0.55;
+  cx.imageSmoothingEnabled = true;
+  cx.drawImage(off, 0, 0, w, h);
+  cx.restore();
+
+  // --- Action dots (on top) ---
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
     const age = (Date.now() - a.time) / 1000;
-    const alpha = Math.max(0.05, 1 - age / 120);
-    const r = Math.max(3, 7 * (1 - age / 180));
+    if (age > 120) continue;
+    const alpha = Math.max(0.1, 1 - age / 120);
+    const r = Math.max(3, 6 * (1 - age / 180));
     const color = ACTION_COLORS[a.action] || '#64748b';
 
     cx.beginPath();
     cx.arc(fx(a.x), fy(a.y), r, 0, Math.PI * 2);
-    cx.fillStyle = color + Math.round(alpha * 180).toString(16).padStart(2, '0');
+    cx.fillStyle = color;
+    cx.globalAlpha = alpha * 0.85;
     cx.fill();
-    cx.strokeStyle = color + Math.round(Math.min(alpha * 200, 200)).toString(16).padStart(2, '0');
-    cx.lineWidth = 1.5;
+    cx.strokeStyle = 'rgba(255,255,255,0.5)';
+    cx.lineWidth = 1.2;
     cx.stroke();
   }
+  cx.globalAlpha = 1;
 }
 
 function addActionPosition(kps, action) {
