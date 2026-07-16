@@ -89,7 +89,6 @@ class Skeleton3DRenderer {
     skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
     if (!targetKps || targetKps.length < 17) return;
 
-    // Normalize both source and target using the same center/scale (from target)
     const info = this._normInfo(targetKps);
     const target = this._normApply(targetKps, info);
     let pts = target;
@@ -108,102 +107,60 @@ class Skeleton3DRenderer {
       }
     }
 
-    const color = 0x4699e6;
-    const mat = () => new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.02, flatShading: false });
+    const skin = 0xe8c4a0;
+    const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.5, metalness: 0 });
+    const limbMat = new THREE.MeshStandardMaterial({ color: 0xdbb48c, roughness: 0.5, metalness: 0 });
 
-    const capsuleGeo = (radius, length) => {
-      const half = length / 2;
-      const segs = 6;
-      const p = [];
-      p.push(new THREE.Vector2(0, -half - radius));
-      for (let i = 1; i <= segs; i++) {
-        const a = (i / segs) * (Math.PI / 2);
-        p.push(new THREE.Vector2(radius * Math.sin(a), -half - radius * Math.cos(a)));
-      }
-      p.push(new THREE.Vector2(radius, half));
-      for (let i = 1; i <= segs; i++) {
-        const a = (i / segs) * (Math.PI / 2);
-        p.push(new THREE.Vector2(radius * Math.cos(a), half + radius * Math.sin(a)));
-      }
-      p.push(new THREE.Vector2(0, half + radius));
-      return new THREE.LatheGeometry(p, 10);
-    };
-
-    const torsoProfile = (topW, botW, height) => {
-      const half = height / 2;
-      const segs = 4;
-      const p = [];
-      p.push(new THREE.Vector2(0, -half));
-      for (let i = 1; i <= segs; i++) {
-        const t = i / segs;
-        const r = botW / 2 + (topW / 2 - botW / 2) * t;
-        p.push(new THREE.Vector2(r, -half + t * height));
-      }
-      for (let i = 1; i <= segs; i++) {
-        const a = (i / segs) * (Math.PI / 2);
-        p.push(new THREE.Vector2(topW / 2 * Math.cos(a), half + (topW / 4) * Math.sin(a)));
-      }
-      p.push(new THREE.Vector2(0, half + topW / 4));
-      return new THREE.LatheGeometry(p, 12);
-    };
-
-    const addCapsule = (a, b, radius) => {
+    const addLimb = (a, b, r, m) => {
       if (!a || !b) return;
       const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
       const len = Math.hypot(dx, dy, dz);
       if (len < 0.005) return;
-      const geo = capsuleGeo(radius, len);
-      const mesh = new THREE.Mesh(geo, mat());
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r, len, 8), m);
       mesh.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
       const up = new THREE.Vector3(0, 1, 0);
       mesh.quaternion.setFromUnitVectors(up, new THREE.Vector3(dx, dy, dz).normalize());
       this.group.add(mesh);
+      const j1 = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 7), m);
+      j1.position.set(a.x, a.y, a.z); this.group.add(j1);
+      const j2 = new THREE.Mesh(new THREE.SphereGeometry(r * 0.85, 7, 7), m);
+      j2.position.set(b.x, b.y, b.z); this.group.add(j2);
     };
 
-    // --- Head ---
+    // Head
     if (pts[0]) {
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, 14, 14),
-        new THREE.MeshStandardMaterial({ color: 0x5aacff, roughness: 0.25, metalness: 0.02 })
-      );
-      head.position.set(pts[0].x, pts[0].y, pts[0].z);
-      head.scale.y = 1.15;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), skinMat);
+      head.position.set(pts[0].x, pts[0].y, pts[0].z); head.scale.y = 1.12;
       this.group.add(head);
     }
 
-    // --- Neck ---
     const shMid = this._mid(pts[5], pts[6]);
-    if (pts[0] && shMid) addCapsule(pts[0], shMid, 0.035);
+    if (pts[0] && shMid) addLimb(pts[0], shMid, 0.03, skinMat);
 
-    // --- Torso (tapered shoulders→hips) ---
     const hpMid = this._mid(pts[11], pts[12]);
     if (shMid && hpMid) {
-      const topW = this._dist(pts[5], pts[6]) * 1.15 || 0.2;
-      const botW = this._dist(pts[11], pts[12]) * 1.1 || 0.15;
-      const th = this._dist(shMid, hpMid) * 1.05 || 0.28;
-      const torso = new THREE.Mesh(torsoProfile(topW, botW, th), mat());
-      torso.position.set(
-        (shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2
+      const tw = (this._dist(pts[5], pts[6]) * 0.9 || 0.16);
+      const th = this._dist(shMid, hpMid) * 1.0 || 0.26;
+      const td = tw * 0.35;
+      const torso = new THREE.Mesh(
+        new THREE.CylinderGeometry(tw * 0.6, tw * 0.5, th, 10),
+        skinMat
       );
+      torso.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2);
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
-      if (Math.hypot(sdx, sdy, sdz) > 0.01) {
-        torso.quaternion.setFromUnitVectors(
-          new THREE.Vector3(0, 1, 0),
-          new THREE.Vector3(sdx, sdy, sdz).normalize()
-        );
-      }
+      if (Math.hypot(sdx, sdy, sdz) > 0.01)
+        torso.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
       this.group.add(torso);
     }
 
-    // --- Limbs ---
-    addCapsule(pts[5], pts[7], 0.045);
-    addCapsule(pts[7], pts[9], 0.035);
-    addCapsule(pts[6], pts[8], 0.045);
-    addCapsule(pts[8], pts[10], 0.035);
-    addCapsule(pts[11], pts[13], 0.055);
-    addCapsule(pts[13], pts[15], 0.04);
-    addCapsule(pts[12], pts[14], 0.055);
-    addCapsule(pts[14], pts[16], 0.04);
+    addLimb(pts[5], pts[7], 0.035, limbMat);
+    addLimb(pts[7], pts[9], 0.028, limbMat);
+    addLimb(pts[6], pts[8], 0.035, limbMat);
+    addLimb(pts[8], pts[10], 0.028, limbMat);
+    addLimb(pts[11], pts[13], 0.045, limbMat);
+    addLimb(pts[13], pts[15], 0.035, limbMat);
+    addLimb(pts[12], pts[14], 0.045, limbMat);
+    addLimb(pts[14], pts[16], 0.035, limbMat);
   }
 
   _mid(a, b) {
