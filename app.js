@@ -1028,7 +1028,7 @@ async function loadModel() {
 const LLM_CONFIGS = {
   gemini: { name: 'Gemini 2.0 Flash', endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', apiModel: '', keyLabel: 'Google AI Studio API Key', isGemini: true },
   deepseek: { name: 'DeepSeek V4 Flash Free', endpoint: 'https://api.deepseek.com/v1/chat/completions', apiModel: 'deepseek-chat', keyLabel: 'DeepSeek API Key' },
-  glm: { name: 'GLM-4.5', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', apiModel: 'glm-4', keyLabel: '智谱 API Key' }
+  glm: { name: 'GLM-4.5', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', apiModel: 'glm-4', keyLabel: 'Zhipu API Key' }
 };
 
 function getApiKey(model) { return localStorage.getItem('pck_' + model); }

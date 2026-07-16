@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,8 +25,8 @@
         <div class="user-menu">
           <button class="topbar-btn" id="btnUser" title="User">👤</button>
           <div class="user-dropdown" id="userDropdown">
-            <div class="dropdown-item" data-role="player">🟢 <strong>Player</strong><span class="dropdown-sub">体能 / 技术建议</span></div>
-            <div class="dropdown-item" data-role="coach">🔵 <strong>Coach</strong><span class="dropdown-sub">执教 / 训练策略</span></div>
+            <div class="dropdown-item" data-role="player">🟢 <strong>Player</strong><span class="dropdown-sub">Fitness &amp; Technique Tips</span></div>
+            <div class="dropdown-item" data-role="coach">🔵 <strong>Coach</strong><span class="dropdown-sub">Tactics &amp; Training Strategy</span></div>
           </div>
         </div>
       </div>
@@ -43,15 +43,15 @@
           <div class="setting-options" id="modelOptions">
             <div class="setting-option" data-model="gemini">
               <strong>Gemini 2.0 Flash</strong>
-              <span class="setting-sub">免费 · Google 最强模型，无需付费</span>
+              <span class="setting-sub">Free · Google's strongest free model</span>
             </div>
             <div class="setting-option" data-model="deepseek">
               <strong>DeepSeek V4 Flash Free</strong>
-              <span class="setting-sub">快速免费 · 需 DeepSeek API Key</span>
+              <span class="setting-sub">Fast &amp; free · Needs DeepSeek API Key</span>
             </div>
             <div class="setting-option" data-model="glm">
               <strong>GLM-4.5</strong>
-              <span class="setting-sub">国产模型 · 需智谱 API Key</span>
+              <span class="setting-sub">Chinese model · Needs Zhipu API Key</span>
             </div>
           </div>
         </div>
@@ -70,53 +70,53 @@
     <div class="tips-panel" id="tipsPanel">
       <div class="settings-header">
         <div class="tips-tabs">
-          <span class="tips-tab active" data-tab="keys">🔑 获取 Key</span>
-          <span class="tips-tab" data-tab="tuning">🎛️ 参数调优</span>
+          <span class="tips-tab active" data-tab="keys">🔑 Get Keys</span>
+          <span class="tips-tab" data-tab="tuning">🎛️ Tuning Guide</span>
         </div>
         <button class="settings-close" id="tipsClose">✕</button>
       </div>
       <div class="settings-body">
         <div class="tips-page active" id="tipsPageKeys">
           <div class="tip-item">
-            <strong style="color:#111">Gemini 2.0 Flash (免费)</strong>
-            <div class="tip-desc">前往 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 一键创建 API Key，完全免费。</div>
+            <strong style="color:#111">Gemini 2.0 Flash (Free)</strong>
+            <div class="tip-desc">Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> to create an API Key — completely free, no credit card required.</div>
           </div>
           <div class="tip-item">
-            <strong style="color:#111">DeepSeek V4 Flash Free (免费额度)</strong>
-            <div class="tip-desc">前往 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a> 注册创建 API Key，新用户有免费额度。</div>
+            <strong style="color:#111">DeepSeek V4 Flash Free (Free credits)</strong>
+            <div class="tip-desc">Go to <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a> to sign up and create an API Key — free credits for new users.</div>
           </div>
           <div class="tip-item">
-            <strong style="color:#111">GLM-4.5 (免费额度)</strong>
-            <div class="tip-desc">前往 <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">open.bigmodel.cn/usercenter/apikeys</a> 注册创建 API Key，实名认证送免费额度。</div>
+            <strong style="color:#111">GLM-4.5 (Free credits)</strong>
+            <div class="tip-desc">Go to <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">open.bigmodel.cn/usercenter/apikeys</a> to sign up and create an API Key — free credits after verification.</div>
           </div>
-          <div class="tip-note">API Key 仅保存在浏览器本地，不会上传到其他服务器。</div>
+          <div class="tip-note">API Keys are stored locally in your browser and are never sent to any other server.</div>
         </div>
         <div class="tips-page" id="tipsPageTuning">
           <div class="tip-item">
             <strong>Detection Interval</strong>
-            <div class="tip-desc">姿态检测间隔（毫秒）。数值越小越流畅但更耗性能。建议 500-1000ms。</div>
+            <div class="tip-desc">Interval between pose detections (ms). Lower = smoother but more CPU. Recommended: 500-1000ms.</div>
           </div>
           <div class="tip-item">
             <strong>3D Rotation Speed</strong>
-            <div class="tip-desc">3D 小人自动旋转速度。数值越大转得越快。建议 0.005-0.02。</div>
+            <div class="tip-desc">Auto-rotation speed of the 3D character. Higher = faster spin. Recommended: 0.005-0.02.</div>
           </div>
           <div class="tip-item">
             <strong>3D Animation Speed</strong>
-            <div class="tip-desc">3D 演示动画的插值振荡频率。数值越大动作切换越快。建议 0.002-0.006。</div>
+            <div class="tip-desc">Oscillation speed of the pose blending animation. Higher = quicker transitions. Recommended: 0.002-0.006.</div>
           </div>
           <div class="tip-item">
             <strong>LLM Temperature</strong>
-            <div class="tip-desc">AI 教练回复的随机性/创造性。0 = 每次都一样，1 = 天马行空。建议 0.5-0.9。</div>
+            <div class="tip-desc">Creativity of AI coach responses. 0 = deterministic, 1 = wild. Recommended: 0.5-0.9.</div>
           </div>
           <div class="tip-item">
             <strong>LLM Max Tokens</strong>
-            <div class="tip-desc">AI 教练回复的最大字数。数值越大回复越长。建议 60-150。</div>
+            <div class="tip-desc">Maximum response length from the AI coach. Recommended: 60-150.</div>
           </div>
           <div class="tip-item">
             <strong>Pose Match Threshold</strong>
-            <div class="tip-desc">姿态匹配的判定阈值。低于此值判定为"需要改进"。建议 0.4-0.7。</div>
+            <div class="tip-desc">Threshold for pose matching. Below this = "Needs improvement". Recommended: 0.4-0.7.</div>
           </div>
-          <div class="tip-note">调参原则：先调 Detection Interval 确保流畅度，再调 Temperature 得到合适的回复风格，最后根据实际效果微调其他参数。</div>
+          <div class="tip-note">Tuning order: first adjust Detection Interval for smoothness, then Temperature for reply style, then fine-tune other params as needed.</div>
         </div>
       </div>
     </div>
