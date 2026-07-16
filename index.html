@@ -37,21 +37,29 @@
       </div>
       <div class="settings-body">
         <div class="setting-group">
-          <label class="setting-label">AI Model</label>
+          <label class="setting-label">AI Coach Model</label>
           <div class="setting-options" id="modelOptions">
-            <div class="setting-option" data-model="lightning">
-              <strong>MoveNet Lightning</strong>
-              <span class="setting-sub">Fast &middot; Lower accuracy</span>
+            <div class="setting-option" data-model="gpt">
+              <strong>GPT-5.5</strong>
+              <span class="setting-sub">最强模型 · 需 OpenAI API Key</span>
             </div>
-            <div class="setting-option" data-model="thunder">
-              <strong>MoveNet Thunder</strong>
-              <span class="setting-sub">Balanced &middot; Higher accuracy</span>
+            <div class="setting-option" data-model="deepseek">
+              <strong>DeepSeek V4 Flash Free</strong>
+              <span class="setting-sub">快速免费 · 需 DeepSeek API Key</span>
             </div>
-            <div class="setting-option" data-model="posenet">
-              <strong>PoseNet</strong>
-              <span class="setting-sub">Legacy &middot; Mobile-friendly</span>
+            <div class="setting-option" data-model="glm">
+              <strong>GLM-4.5</strong>
+              <span class="setting-sub">国产模型 · 需智谱 API Key</span>
             </div>
           </div>
+        </div>
+        <div class="setting-group" id="apiKeyGroup" style="display:none">
+          <label class="setting-label">API Key</label>
+          <div class="api-key-row">
+            <input type="password" id="apiKeyInput" placeholder="Paste your API key..." />
+            <button class="btn btn-primary" id="btnSaveKey" style="flex-shrink:0;padding:6px 14px;font-size:12px">Save</button>
+          </div>
+          <div class="api-key-status" id="apiKeyStatus"></div>
         </div>
       </div>
     </div>

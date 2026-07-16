@@ -18,7 +18,7 @@ const state = {
   lastKeypoints: null, targetKeypoints: null, targetAction: null,
   matchScore: 0, prevAction: null,
   role: 'player',
-  modelType: 'lightning',
+  llmModel: 'gpt',
   actionPositions: []
 };
 
@@ -908,34 +908,38 @@ function getTransForRole(role) {
   return role === 'coach' ? COACH_TRANSITION : TRANSITION_TIPS;
 }
 
-function generateSuggestion(data, matchScore, nextAction, features) {
+function renderFallbackSuggestion(data, matchScore, nextAction) {
   const pct = matchScore * 100;
   const tips = getTipsForRole(state.role);
   const transTips = getTransForRole(state.role);
   const actionTips = tips[data.action] || tips.stop;
   const tier = actionTips.find(t => pct >= t.min && pct < t.max) || actionTips[actionTips.length - 1];
-
   const transKey = data.action + '_' + nextAction;
   const transTip = transTips[transKey];
 
   let parts = `<div class="suggestion-icon">${tier.icon}</div>`;
-
-  if (pct < 30) {
-    parts += `<div class="suggestion-text"><span class="match-bad">Needs work</span> — ${tier.text}`;
-  } else if (pct < 60) {
-    parts += `<div class="suggestion-text"><span class="match-ok">Getting there</span> — ${tier.text}`;
-  } else if (pct < 80) {
-    parts += `<div class="suggestion-text"><span class="match-ok">Almost!</span> — ${tier.text}`;
-  } else {
-    parts += `<div class="suggestion-text"><span class="match-good">Nailed it!</span> — ${tier.text}`;
-  }
-
-  if (transTip) {
-    parts += `<br><br>🔄 <span style="opacity:0.7;font-size:12px;">${transTip}</span>`;
-  }
-
+  if (pct < 30) parts += `<div class="suggestion-text"><span class="match-bad">Needs work</span> — ${tier.text}`;
+  else if (pct < 60) parts += `<div class="suggestion-text"><span class="match-ok">Getting there</span> — ${tier.text}`;
+  else if (pct < 80) parts += `<div class="suggestion-text"><span class="match-ok">Almost!</span> — ${tier.text}`;
+  else parts += `<div class="suggestion-text"><span class="match-good">Nailed it!</span> — ${tier.text}`;
+  if (transTip) parts += `<br><br>🔄 <span style="opacity:0.7;font-size:12px;">${transTip}</span>`;
   parts += '</div>';
   return parts;
+}
+
+async function updateSuggestion(data, matchScore, nextAction) {
+  const hasKey = !!getApiKey(state.llmModel);
+  if (hasKey) {
+    suggestionBody.innerHTML = '<div class="suggestion-icon">🤖</div><div class="suggestion-text" style="opacity:0.6">AI thinking...</div>';
+    const tip = await callLLMAction(data.action, data.confidence, matchScore, nextAction, state.role);
+    if (tip) {
+      const pct = Math.round(matchScore * 100);
+      let badge = pct < 30 ? '<span class="match-bad">Needs work</span>' : pct < 60 ? '<span class="match-ok">Getting there</span>' : pct < 80 ? '<span class="match-ok">Almost!</span>' : '<span class="match-good">Nailed it!</span>';
+      suggestionBody.innerHTML = `<div class="suggestion-icon">🎯</div><div class="suggestion-text">${badge} — ${tip}</div>`;
+      return;
+    }
+  }
+  suggestionBody.innerHTML = renderFallbackSuggestion(data, matchScore, nextAction);
 }
 
 function displayPrediction(data, kps) {
@@ -961,7 +965,7 @@ function displayPrediction(data, kps) {
     <span class="pred-conf">${(data.confidence*100).toFixed(1)}%</span>`;
   renderBars($('confidenceBars'), data.all_actions);
 
-  suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
+  updateSuggestion(data, state.matchScore, nextAction);
 
   if (skeleton3D) skeleton3D.update(state.targetKeypoints, nextAction, kps);
 
@@ -1007,44 +1011,41 @@ async function detectPose() {
   state.predicting = false;
 }
 
-const MODEL_CONFIGS = {
-  lightning: {
-    model: 'MoveNet',
-    config: { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-  },
-  thunder: {
-    model: 'MoveNet',
-    config: { modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER }
-  },
-  posenet: {
-    model: 'PoseNet',
-    config: {
-      architecture: 'MobileNetV1',
-      outputStride: 16,
-      inputResolution: 257,
-      multiplier: 0.75
-    }
-  }
-};
+const POSE_MODEL = { model: 'MoveNet', config: { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING } };
 
 async function loadModel() {
   modelLoading.classList.add('visible');
   try {
-    const cfg = MODEL_CONFIGS[state.modelType];
-    if (cfg.model === 'MoveNet') {
-      state.detector = await poseDetection.createDetector(
-        poseDetection.SupportedModels.MoveNet,
-        cfg.config
-      );
-    } else {
-      state.detector = await poseDetection.createDetector(
-        poseDetection.SupportedModels.PoseNet,
-        cfg.config
-      );
-    }
+    state.detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, POSE_MODEL.config);
     state.modelReady = true;
   } catch (err) { console.error('Model load failed:', err); }
   modelLoading.classList.remove('visible');
+}
+
+const LLM_CONFIGS = {
+  gpt: { name: 'GPT-5.5', endpoint: 'https://api.openai.com/v1/chat/completions', apiModel: 'gpt-4o', keyLabel: 'OpenAI API Key' },
+  deepseek: { name: 'DeepSeek V4 Flash Free', endpoint: 'https://api.deepseek.com/v1/chat/completions', apiModel: 'deepseek-chat', keyLabel: 'DeepSeek API Key' },
+  glm: { name: 'GLM-4.5', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', apiModel: 'glm-4', keyLabel: '智谱 API Key' }
+};
+
+function getApiKey(model) { return localStorage.getItem('pck_' + model); }
+function setApiKey(model, key) { localStorage.setItem('pck_' + model, key); }
+
+async function callLLMAction(action, conf, match, nextAction, role) {
+  const cfg = LLM_CONFIGS[state.llmModel];
+  const key = getApiKey(state.llmModel);
+  if (!key) return null;
+  const pct = Math.round(match * 100);
+  const roleHint = role === 'coach' ? 'You are a professional football coach. Give tactical coaching advice.' : 'You are a personal trainer. Give technique advice.';
+  const sys = `${roleHint} The player is performing "${action}" (${Math.round(conf*100)}% confidence, form match ${pct}%). Next recommended action: "${nextAction}". Reply with a VERY short tip (1 sentence, one emoji, under 40 words).`;
+  try {
+    const res = await fetch(cfg.endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: 80, temperature: 0.7 })
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (e) { return null; }
 }
 
 async function startCamera() {
@@ -1153,27 +1154,40 @@ $('btnSettings').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
 settingsOverlay.addEventListener('click', closeSettings);
 
-function highlightModelOption(opt) {
-  document.querySelectorAll('.setting-option').forEach(el => el.classList.remove('active'));
-  if (opt) opt.classList.add('active');
+const $apiKeyGroup = $('apiKeyGroup');
+const $apiKeyInput = $('apiKeyInput');
+const $apiKeyStatus = $('apiKeyStatus');
+
+function showApiKeyInput(model) {
+  const cfg = LLM_CONFIGS[model];
+  if (!cfg) return;
+  $apiKeyGroup.style.display = 'block';
+  $apiKeyInput.placeholder = 'Paste your ' + cfg.keyLabel + '...';
+  const saved = getApiKey(model);
+  if (saved) { $apiKeyInput.value = saved; $apiKeyStatus.textContent = '✓ Key saved'; $apiKeyStatus.className = 'api-key-status ok'; }
+  else { $apiKeyInput.value = ''; $apiKeyStatus.textContent = ''; $apiKeyStatus.className = 'api-key-status'; }
 }
 
 document.querySelectorAll('.setting-option').forEach(el => {
-  el.addEventListener('click', async () => {
+  el.addEventListener('click', () => {
     const model = el.dataset.model;
-    if (model === state.modelType) return;
-    const wasActive = state.isCamera;
-    if (wasActive) stopCamera();
-    state.modelType = model;
-    state.modelReady = false;
-    state.detector = null;
-    highlightModelOption(el);
-    await loadModel();
-    if (wasActive && state.modelReady) startCamera();
+    if (model === state.llmModel) return;
+    state.llmModel = model;
+    document.querySelectorAll('.setting-option').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    showApiKeyInput(model);
   });
 });
 
-highlightModelOption(document.querySelector(`.setting-option[data-model="${state.modelType}"]`));
+$('btnSaveKey').addEventListener('click', () => {
+  const key = $apiKeyInput.value.trim();
+  if (!key) { $apiKeyStatus.textContent = 'Please enter an API key'; $apiKeyStatus.className = 'api-key-status err'; return; }
+  setApiKey(state.llmModel, key);
+  $apiKeyStatus.textContent = '✓ Key saved'; $apiKeyStatus.className = 'api-key-status ok';
+});
+
+const initModel = document.querySelector(`.setting-option[data-model="${state.llmModel}"]`);
+if (initModel) { initModel.classList.add('active'); showApiKeyInput(state.llmModel); }
 
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);
