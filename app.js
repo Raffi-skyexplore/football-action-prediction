@@ -32,9 +32,9 @@ const feedbackBars = $('feedbackBars'), feedbackStream = $('feedbackStream');
 const matchPct = $('matchPct'), matchBarFill = $('matchBarFill');
 const suggestionText = $('suggestionText');
 const suggestionBody = $('suggestionBody');
-const skeletonCanvas = $('skeletonCanvas');
-const skeletonCtx = skeletonCanvas.getContext('2d');
+const skeletonContainer = $('skeletonContainer');
 const skeletonLabel = $('skeletonLabel');
+let skeleton3D = null;
 const pitchCanvas = $('pitchCanvas');
 const pitchCtx = pitchCanvas.getContext('2d');
 const pitchCard = $('pitchCard');
@@ -47,10 +47,153 @@ function resizeCanvas() {
   canvas.width = r.width; canvas.height = r.height;
 }
 
-function resizeSkeletonCanvas() {
-  const rect = skeletonCanvas.getBoundingClientRect();
-  skeletonCanvas.width = rect.width;
-  skeletonCanvas.height = rect.height;
+class Skeleton3DRenderer {
+  constructor(container) {
+    this.container = container;
+    const rect = container.getBoundingClientRect();
+    this.width = rect.width || 300;
+    this.height = Math.max(rect.height || 180, 180);
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x0d1117);
+
+    this.camera = new THREE.PerspectiveCamera(40, this.width / this.height, 0.1, 100);
+    this.camera.position.set(0, 0.3, 3.5);
+    this.camera.lookAt(0, 0, 0);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(this.width, this.height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(this.renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0x404060, 0.6);
+    this.scene.add(ambient);
+    const main = new THREE.DirectionalLight(0xffffff, 1.2);
+    main.position.set(2, 3, 4);
+    this.scene.add(main);
+    const fill = new THREE.DirectionalLight(0x4488ff, 0.4);
+    fill.position.set(-2, 1, -3);
+    this.scene.add(fill);
+    const rim = new THREE.DirectionalLight(0x88ccff, 0.3);
+    rim.position.set(0, -2, -2);
+    this.scene.add(rim);
+
+    this.group = new THREE.Group();
+    this.scene.add(this.group);
+
+    this._animate();
+  }
+
+  update(kps, actionName) {
+    while (this.group.children.length) {
+      const c = this.group.children[0];
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+      this.group.remove(c);
+    }
+    skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
+    if (!kps || kps.length < 17) return;
+
+    const pts = this._to3D(kps);
+
+    const jColor = 0x4a9eff;
+    const bColor = 0x4a9eff;
+
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (!p) continue;
+      const s = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 12, 12),
+        new THREE.MeshStandardMaterial({ color: jColor, roughness: 0.3, metalness: 0.15 })
+      );
+      s.position.set(p.x, p.y, p.z);
+      this.group.add(s);
+    }
+
+    for (const limb of LIMB_PAIRS) {
+      const a = pts[limb.a], b = pts[limb.b];
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+      const len = Math.hypot(dx, dy, dz);
+      if (len < 0.002) continue;
+      const bone = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, len, 6),
+        new THREE.MeshStandardMaterial({ color: bColor, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.85 })
+      );
+      bone.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      const up = new THREE.Vector3(0, 1, 0);
+      const dir = new THREE.Vector3(dx, dy, dz).normalize();
+      bone.quaternion.setFromUnitVectors(up, dir);
+      this.group.add(bone);
+    }
+
+    const tl = pts[5], tr = pts[6], br = pts[12], bl = pts[11];
+    if (tl && tr && br && bl) {
+      const geo = new THREE.BufferGeometry();
+      const verts = new Float32Array([
+        tl.x, tl.y, tl.z, tr.x, tr.y, tr.z, br.x, br.y, br.z,
+        tl.x, tl.y, tl.z, br.x, br.y, br.z, bl.x, bl.y, bl.z
+      ]);
+      geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x4a9eff, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+      });
+      const torso = new THREE.Mesh(geo, mat);
+      this.group.add(torso);
+    }
+  }
+
+  _to3D(kps) {
+    let mx = 0, my = 0, n = 0;
+    for (const k of kps) {
+      if (k.x != null && k.y != null) { mx += k.x; my += k.y; n++; }
+    }
+    mx /= n; my /= n;
+    let maxD = 0;
+    for (const k of kps) {
+      if (k.x != null && k.y != null) maxD = Math.max(maxD, Math.hypot(k.x - mx, k.y - my));
+    }
+    const s = maxD > 0 ? 1.2 / maxD : 1;
+    const zMap = [0, -0.15, 0.15, -0.2, 0.2, -0.25, 0.25, -0.3, 0.3, -0.35, 0.35, -0.2, 0.2, -0.3, 0.3, -0.35, 0.35];
+    return kps.map((k, i) => {
+      if (!k || k.x == null) return null;
+      return { x: (k.x - mx) * s, y: -(k.y - my) * s, z: zMap[i] || 0 };
+    });
+  }
+
+  clear() {
+    while (this.group.children.length) {
+      const c = this.group.children[0];
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+      this.group.remove(c);
+    }
+  }
+
+  _animate() {
+    requestAnimationFrame(() => this._animate());
+    this.group.rotation.y += 0.008;
+    this.group.rotation.x = Math.sin(Date.now() * 0.0004) * 0.04;
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  resize() {
+    const rect = this.container.getBoundingClientRect();
+    this.width = rect.width || 300;
+    this.height = Math.max(rect.height || 180, 180);
+    this.renderer.setSize(this.width, this.height);
+    this.camera.aspect = this.width / this.height;
+    this.camera.updateProjectionMatrix();
+  }
+}
+
+function initSkeleton3D() {
+  if (!skeleton3D) {
+    skeleton3D = new Skeleton3DRenderer(skeletonContainer);
+  } else {
+    skeleton3D.resize();
+  }
 }
 
 function resizePitchCanvas() {
@@ -60,7 +203,7 @@ function resizePitchCanvas() {
   drawPitch();
 }
 window.addEventListener('resize', resizeCanvas);
-window.addEventListener('resize', resizeSkeletonCanvas);
+window.addEventListener('resize', () => { if (skeleton3D) skeleton3D.resize(); });
 window.addEventListener('resize', resizePitchCanvas);
 
 function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
@@ -404,79 +547,6 @@ function drawAll(detectedKps, targetKps) {
     }));
     drawRealBody(dk, false);
   }
-}
-
-function drawPureGhost(kps, actionName) {
-  const c = skeletonCanvas, cx = skeletonCtx;
-  const rect = c.getBoundingClientRect();
-  if (c.width !== rect.width || c.height !== rect.height) {
-    c.width = rect.width; c.height = rect.height;
-  }
-  cx.clearRect(0, 0, c.width, c.height);
-  skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
-
-  if (!kps || kps.length < 17) return;
-
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const k of kps) {
-    if (k.x != null && k.y != null) {
-      minX = Math.min(minX, k.x); maxX = Math.max(maxX, k.x);
-      minY = Math.min(minY, k.y); maxY = Math.max(maxY, k.y);
-    }
-  }
-
-  const bw = maxX - minX || 1, bh = maxY - minY || 1;
-  const pad = 0.15;
-  const scale = Math.min(c.width / (bw * (1 + pad * 2)), c.height / (bh * (1 + pad * 2)));
-  const ox = (c.width - bw * scale) / 2;
-  const oy = (c.height - bh * scale) / 2;
-
-  const tx = kps.map(k => ({
-    x: (k.x - minX) * scale + ox, y: (k.y - minY) * scale + oy,
-    score: 1, confidence: 1
-  }));
-
-  cx.lineCap = 'round';
-  cx.lineJoin = 'round';
-
-  const bodyH = dist(mid(tx[5], tx[6]), mid(tx[11], tx[12]));
-  const refW = Math.max(12, bodyH * 0.25);
-  const headR = Math.max(6, bodyH * 0.15);
-
-  const torso = [tx[5], tx[6], tx[12], tx[11]];
-  if (torso.every(p => p)) {
-    cx.beginPath();
-    cx.moveTo(tx[5].x, tx[5].y);
-    cx.lineTo(tx[6].x, tx[6].y);
-    cx.lineTo(tx[12].x, tx[12].y);
-    cx.lineTo(tx[11].x, tx[11].y);
-    cx.closePath();
-    cx.fillStyle = 'rgba(53, 132, 228, 0.08)';
-    cx.fill();
-    cx.strokeStyle = 'rgba(53, 132, 228, 0.5)';
-    cx.lineWidth = 2;
-    cx.stroke();
-  }
-
-  for (const limb of LIMB_PAIRS) {
-    const a = tx[limb.a], b = tx[limb.b];
-    if (!a || !b) continue;
-    const lw = refW * limb.w * 0.5;
-    cx.beginPath();
-    cx.moveTo(a.x, a.y);
-    cx.lineTo(b.x, b.y);
-    cx.strokeStyle = 'rgba(53, 132, 228, 0.6)';
-    cx.lineWidth = Math.max(2.5, lw);
-    cx.stroke();
-  }
-
-  cx.beginPath();
-  cx.arc(tx[0].x, tx[0].y, headR * 0.8, 0, Math.PI * 2);
-  cx.fillStyle = 'rgba(53, 132, 228, 0.12)';
-  cx.fill();
-  cx.strokeStyle = 'rgba(53, 132, 228, 0.45)';
-  cx.lineWidth = 2;
-  cx.stroke();
 }
 
 function getPitchPosition(kps) {
@@ -836,7 +906,7 @@ function displayPrediction(data, kps) {
 
   suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
 
-  drawPureGhost(state.targetKeypoints, nextAction);
+  if (skeleton3D) skeleton3D.update(state.targetKeypoints, nextAction);
 
   if (state.role === 'coach') addActionPosition(kps, data.action);
 }
@@ -971,8 +1041,7 @@ function resetAll() {
   $('predictionResult').innerHTML = '<span class="pred-label">—</span><span class="pred-conf">—</span>';
   $('confidenceBars').innerHTML = ''; renderHistory();
   suggestionBody.innerHTML = '<div class="suggestion-icon">🧘</div><div class="suggestion-text" id="suggestionText">Stand in frame to receive coaching tips</div>';
-  skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
-  skeletonLabel.textContent = 'Waiting...';
+  if (skeleton3D) { skeleton3D.clear(); skeletonLabel.textContent = 'Waiting...'; }
   state.actionPositions = [];
   pitchCtx.clearRect(0, 0, pitchCanvas.width, pitchCanvas.height);
   placeholder.style.display = 'flex';
@@ -1052,7 +1121,7 @@ highlightModelOption(document.querySelector(`.setting-option[data-model="${state
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);
 resizeCanvas();
-resizeSkeletonCanvas();
+initSkeleton3D();
 resizePitchCanvas();
 buildLegend();
 loadModel();
