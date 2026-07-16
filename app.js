@@ -1154,6 +1154,16 @@ $('btnSettings').addEventListener('click', openSettings);
 $('settingsClose').addEventListener('click', closeSettings);
 settingsOverlay.addEventListener('click', closeSettings);
 
+const tipsPanel = $('tipsPanel');
+const tipsOverlay = $('tipsOverlay');
+
+function openTips() { tipsPanel.classList.add('open'); tipsOverlay.classList.add('open'); }
+function closeTips() { tipsPanel.classList.remove('open'); tipsOverlay.classList.remove('open'); }
+
+$('btnTips').addEventListener('click', openTips);
+$('tipsClose').addEventListener('click', closeTips);
+tipsOverlay.addEventListener('click', closeTips);
+
 const $apiKeyGroup = $('apiKeyGroup');
 const $apiKeyInput = $('apiKeyInput');
 const $apiKeyStatus = $('apiKeyStatus');

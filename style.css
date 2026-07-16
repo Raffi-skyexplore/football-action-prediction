@@ -790,6 +790,36 @@ main {
 .api-key-status.ok { color: var(--green); }
 .api-key-status.err { color: var(--red); }
 
+/* Tips Panel */
+.tips-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+  z-index: 210;
+  display: none;
+  overflow: hidden;
+}
+.tips-panel.open { display: block; }
+
+.tip-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tip-item:last-child { border-bottom: none; }
+.tip-desc { margin-top: 4px; color: var(--text-secondary); font-size: 12px; }
+.tip-desc a { color: var(--accent); text-decoration: none; }
+.tip-desc a:hover { text-decoration: underline; }
+.tip-note { margin-top: 14px; padding: 10px 12px; background: var(--accent-subtle); border-radius: var(--radius); font-size: 11px; color: var(--text-muted); }
+
 /* Pitch Card */
 .pitch-card {
   margin-top: 20px;
