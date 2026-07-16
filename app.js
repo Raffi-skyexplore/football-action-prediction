@@ -90,69 +90,96 @@ class Skeleton3DRenderer {
     if (!kps || kps.length < 17) return;
 
     const pts = this._to3D(kps);
+    const color = 0x4699e6;
+    const mat = () => new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.02, flatShading: false });
 
-    const skinColor = 0x4a9eff;
-    const jointColor = 0x5aaeff;
-    const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.35, metalness: 0.05 });
+    // Build a capsule LatheGeometry profile
+    const capsuleGeo = (radius, length) => {
+      const half = length / 2;
+      const segs = 6;
+      const p = [];
+      p.push(new THREE.Vector2(0, -half - radius));
+      for (let i = 1; i <= segs; i++) {
+        const a = (i / segs) * (Math.PI / 2);
+        p.push(new THREE.Vector2(radius * Math.sin(a), -half - radius * Math.cos(a)));
+      }
+      p.push(new THREE.Vector2(radius, half));
+      for (let i = 1; i <= segs; i++) {
+        const a = (i / segs) * (Math.PI / 2);
+        p.push(new THREE.Vector2(radius * Math.cos(a), half + radius * Math.sin(a)));
+      }
+      p.push(new THREE.Vector2(0, half + radius));
+      return new THREE.LatheGeometry(p, 10);
+    };
 
-    // Helper: cylinder between two 3D points
-    const addLimb = (a, b, radius, color) => {
+    // Torso: tapered box using LatheGeometry for smooth shape
+    const torsoProfile = (topW, botW, height, depth) => {
+      // Use a custom profile wider at top (shoulders), narrower at bottom (hips)
+      // Actually use a simple rounded box approach: just a modified capsule
+      const half = height / 2;
+      const segs = 4;
+      const p = [];
+      p.push(new THREE.Vector2(0, -half));
+      // bottom curve
+      for (let i = 1; i <= segs; i++) {
+        const t = i / segs;
+        const r = botW / 2 + (topW / 2 - botW / 2) * t;
+        p.push(new THREE.Vector2(r, -half + t * height));
+      }
+      // top cap
+      for (let i = 1; i <= segs; i++) {
+        const a = (i / segs) * (Math.PI / 2);
+        p.push(new THREE.Vector2(topW / 2 * Math.cos(a), half + (topW / 4) * Math.sin(a)));
+      }
+      p.push(new THREE.Vector2(0, half + topW / 4));
+      return new THREE.LatheGeometry(p, 12);
+    };
+
+    // Helper: oriented capsule between two 3D points
+    const addCapsule = (a, b, radius) => {
       if (!a || !b) return;
       const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
       const len = Math.hypot(dx, dy, dz);
-      if (len < 0.003) return;
-      const mesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius, len, 8),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.05 })
-      );
+      if (len < 0.005) return;
+      const geo = capsuleGeo(radius, len);
+      const mesh = new THREE.Mesh(geo, mat());
       mesh.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
       const up = new THREE.Vector3(0, 1, 0);
       mesh.quaternion.setFromUnitVectors(up, new THREE.Vector3(dx, dy, dz).normalize());
       this.group.add(mesh);
     };
 
-    const addJoint = (p, r, color) => {
-      if (!p) return;
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(r, 10, 10),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.05 })
-      );
-      mesh.position.set(p.x, p.y, p.z);
-      this.group.add(mesh);
-    };
-
     // --- Head ---
     if (pts[0]) {
+      // Slightly oval head
       const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.1, 14, 14),
-        skinMat
+        new THREE.SphereGeometry(0.09, 14, 14),
+        new THREE.MeshStandardMaterial({ color: 0x5aacff, roughness: 0.25, metalness: 0.02 })
       );
       head.position.set(pts[0].x, pts[0].y, pts[0].z);
+      head.scale.y = 1.15;
       this.group.add(head);
     }
 
     // --- Neck ---
     const shMid = this._mid(pts[5], pts[6]);
     if (pts[0] && shMid) {
-      addLimb(pts[0], shMid, 0.04, skinColor);
+      addCapsule(pts[0], shMid, 0.035);
     }
 
-    // --- Torso (box between shoulders and hips) ---
+    // --- Torso (tapered from shoulders to hips) ---
     const hpMid = this._mid(pts[11], pts[12]);
     if (shMid && hpMid) {
-      const tw = this._dist(pts[5], pts[6]) * 1.1 || 0.18;
-      const th = this._dist(shMid, hpMid) * 1.05 || 0.3;
-      const td = tw * 0.45;
-      const torso = new THREE.Mesh(
-        new THREE.BoxGeometry(tw, th, td),
-        skinMat
-      );
+      const topW = this._dist(pts[5], pts[6]) * 1.15 || 0.2;
+      const botW = this._dist(pts[11], pts[12]) * 1.1 || 0.15;
+      const th = this._dist(shMid, hpMid) * 1.05 || 0.28;
+      const geo = torsoProfile(topW, botW, th, 0);
+      const torso = new THREE.Mesh(geo, mat());
       torso.position.set(
         (shMid.x + hpMid.x) / 2,
         (shMid.y + hpMid.y) / 2,
         (shMid.z + hpMid.z) / 2
       );
-      // orient torso along shoulder-to-hip direction
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
       if (Math.hypot(sdx, sdy, sdz) > 0.01) {
         torso.quaternion.setFromUnitVectors(
@@ -163,20 +190,15 @@ class Skeleton3DRenderer {
       this.group.add(torso);
     }
 
-    // --- Limbs ---
-    addLimb(pts[5], pts[7], 0.05, 0x5aaeff);   // L upper arm
-    addLimb(pts[7], pts[9], 0.038, 0x5aaeff);  // L forearm
-    addLimb(pts[6], pts[8], 0.05, 0x5aaeff);   // R upper arm
-    addLimb(pts[8], pts[10], 0.038, 0x5aaeff); // R forearm
-    addLimb(pts[11], pts[13], 0.06, 0x3d8eff); // L thigh
-    addLimb(pts[13], pts[15], 0.045, 0x3d8eff);// L shin
-    addLimb(pts[12], pts[14], 0.06, 0x3d8eff); // R thigh
-    addLimb(pts[14], pts[16], 0.045, 0x3d8eff);// R shin
-
-    // --- Joints ---
-    for (const i of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
-      addJoint(pts[i], 0.035, jointColor);
-    }
+    // --- Limbs (smooth capsules) ---
+    addCapsule(pts[5], pts[7], 0.045);
+    addCapsule(pts[7], pts[9], 0.035);
+    addCapsule(pts[6], pts[8], 0.045);
+    addCapsule(pts[8], pts[10], 0.035);
+    addCapsule(pts[11], pts[13], 0.055);
+    addCapsule(pts[13], pts[15], 0.04);
+    addCapsule(pts[12], pts[14], 0.055);
+    addCapsule(pts[14], pts[16], 0.04);
   }
 
   _mid(a, b) {
@@ -462,118 +484,96 @@ const LIMB_PAIRS = [
   { a: 0, b: 5, w: 0.5 }, { a: 0, b: 6, w: 0.5 }
 ];
 
-function drawRealBody(kps, isGhost) {
+function drawMocapLines(kps, isGhost) {
   if (!kps || kps.length < 17) return;
-
-  const bh = dist(mid(kps[5], kps[6]), mid(kps[11], kps[12]));
-  const refW = Math.max(20, bh * 0.22);
-  const headR = Math.max(8, bh * 0.14);
-
   const valid = kps.map(k => k.c || k.score || 0);
-  const avgC = valid.reduce((a, b) => a + b, 0) / valid.length;
-
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  if (isGhost) {
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 0.35;
+  const lineColor = isGhost ? 'rgba(255,255,255,0.35)' : '#4ae0ff';
+  const dotColor = isGhost ? 'rgba(255,255,255,0.3)' : '#4ae0ff';
+  const alpha = isGhost ? 0.35 : 1;
 
-    const torsoPts = [kps[5], kps[6], kps[12], kps[11]];
-    if (torsoPts.every((p, i) => torsoPts[i])) {
-      ctx.beginPath();
-      ctx.moveTo(kps[5].x, kps[5].y);
-      ctx.lineTo(kps[6].x, kps[6].y);
-      ctx.lineTo(kps[12].x, kps[12].y);
-      ctx.lineTo(kps[11].x, kps[11].y);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+  ctx.globalAlpha = alpha;
 
-    for (const limb of LIMB_PAIRS) {
-      const a = kps[limb.a], b = kps[limb.b];
-      if (!a || !b) continue;
-      if (valid[limb.a] < 0.3 || valid[limb.b] < 0.3) continue;
-      const lw = refW * limb.w * 0.55;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = Math.max(3, lw);
-      ctx.setLineDash([4, 5]);
-      ctx.stroke();
-    }
-    ctx.setLineDash([]);
-
-    ctx.beginPath();
-    ctx.arc(kps[0].x, kps[0].y, headR * 0.8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 5]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.globalAlpha = 1;
-    return;
-  }
-
-  const color = avgC > 0.7 ? '#22c55e' : avgC > 0.4 ? '#f59e0b' : '#ef4444';
-
-  const torsoPts = [kps[5], kps[6], kps[12], kps[11]];
-  if (torsoPts.every(p => p)) {
+  // Torso outline
+  const torso = [kps[5], kps[6], kps[12], kps[11]];
+  if (torso.every(p => p)) {
     ctx.beginPath();
     ctx.moveTo(kps[5].x, kps[5].y);
     ctx.lineTo(kps[6].x, kps[6].y);
     ctx.lineTo(kps[12].x, kps[12].y);
     ctx.lineTo(kps[11].x, kps[11].y);
     ctx.closePath();
-    const grad = ctx.createLinearGradient(kps[5].x, kps[5].y, kps[12].x, kps[12].y);
-    grad.addColorStop(0, color + '80');
-    grad.addColorStop(1, color + '30');
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = color + '90';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    if (isGhost) {
+      ctx.setLineDash([4, 5]);
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = 'rgba(74, 224, 255, 0.06)';
+      ctx.fill();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
+  // Bones as thin clean lines
   for (const limb of LIMB_PAIRS) {
     const a = kps[limb.a], b = kps[limb.b];
     if (!a || !b) continue;
     if (valid[limb.a] < 0.3 || valid[limb.b] < 0.3) continue;
-    const conf = (valid[limb.a] + valid[limb.b]) / 2;
-    const lw = refW * limb.w * (0.4 + conf * 0.4);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = conf > 0.7 ? color : conf > 0.4 ? '#f59e0b' : '#ef4444';
-    ctx.lineWidth = Math.max(4, lw);
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = isGhost ? 1.5 : 2.5;
+    if (isGhost) ctx.setLineDash([4, 5]);
     ctx.stroke();
+    if (isGhost) ctx.setLineDash([]);
   }
 
-  ctx.beginPath();
-  ctx.arc(kps[0].x, kps[0].y, headR, 0, Math.PI * 2);
-  const hGrad = ctx.createRadialGradient(kps[0].x - headR * 0.3, kps[0].y - headR * 0.3, 1, kps[0].x, kps[0].y, headR);
-  hGrad.addColorStop(0, color + 'cc');
-  hGrad.addColorStop(1, color + '60');
-  ctx.fillStyle = hGrad;
-  ctx.fill();
-  ctx.strokeStyle = color + '80';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // Joints as small dots
+  for (let i = 0; i < 17; i++) {
+    if (!kps[i] || valid[i] < 0.3) continue;
+    if (i === 0) continue; // skip head dot
+    ctx.beginPath();
+    ctx.arc(kps[i].x, kps[i].y, isGhost ? 2 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = dotColor;
+    ctx.fill();
+  }
 
-  const validKps = kps.filter((_, i) => valid[i] > 0.3);
-  const avg = validKps.length ? validKps.reduce((s, k) => s + (k.c || k.score || 0), 0) / validKps.length : 0;
-  $('kpCount').textContent = validKps.length;
-  $('kpConf').textContent = (avg * 100).toFixed(1) + '%';
+  // Head circle
+  if (kps[0] && valid[0] >= 0.3) {
+    const bh = dist(mid(kps[5], kps[6]), mid(kps[11], kps[12]));
+    const headR = Math.max(6, bh * 0.12);
+    ctx.beginPath();
+    ctx.arc(kps[0].x, kps[0].y, headR, 0, Math.PI * 2);
+    if (isGhost) {
+      ctx.setLineDash([4, 5]);
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = 'rgba(74, 224, 255, 0.08)';
+      ctx.fill();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+
+  if (!isGhost) {
+    const validKps = kps.filter((_, i) => valid[i] > 0.3);
+    const avg = validKps.length ? validKps.reduce((s, k) => s + (k.c || k.score || 0), 0) / validKps.length : 0;
+    $('kpCount').textContent = validKps.length;
+    $('kpConf').textContent = (avg * 100).toFixed(1) + '%';
+  }
 }
 
 function drawAll(detectedKps, targetKps) {
@@ -585,7 +585,7 @@ function drawAll(detectedKps, targetKps) {
 
   if (targetKps) {
     const tk = targetKps.map(k => ({ x: k.x * scale + ox, y: k.y * scale + oy, score: 1, confidence: 1 }));
-    drawRealBody(tk, true);
+    drawMocapLines(tk, true);
   }
 
   if (detectedKps) {
@@ -594,7 +594,7 @@ function drawAll(detectedKps, targetKps) {
       score: k.confidence != null ? k.confidence : (k.score || 0),
       confidence: k.confidence != null ? k.confidence : (k.score || 0)
     }));
-    drawRealBody(dk, false);
+    drawMocapLines(dk, false);
   }
 }
 
