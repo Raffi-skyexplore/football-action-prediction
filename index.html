@@ -19,7 +19,8 @@
       </div>
       <div class="topbar-right">
         <span class="role-badge" id="roleBadge">🟢 Player</span>
-        <button class="topbar-btn" id="btnTips" title="API Key Tips">💡</button>
+        <button class="topbar-btn" id="btnTips" title="API Key &amp; Tuning Tips">💡</button>
+        <button class="topbar-btn" id="btnAdvanced" title="Advanced Settings">🔧</button>
         <button class="topbar-btn" id="btnSettings" title="Settings">⚙️</button>
         <div class="user-menu">
           <button class="topbar-btn" id="btnUser" title="User">👤</button>
@@ -68,26 +69,92 @@
 
     <div class="tips-panel" id="tipsPanel">
       <div class="settings-header">
-        <h3>💡 API Key 获取方式</h3>
+        <div class="tips-tabs">
+          <span class="tips-tab active" data-tab="keys">🔑 获取 Key</span>
+          <span class="tips-tab" data-tab="tuning">🎛️ 参数调优</span>
+        </div>
         <button class="settings-close" id="tipsClose">✕</button>
       </div>
       <div class="settings-body">
-        <div class="tip-item">
-          <strong style="color:#111">Gemini 2.0 Flash (免费)</strong>
-          <div class="tip-desc">前往 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 一键创建 API Key，完全免费，无需绑定信用卡。</div>
+        <div class="tips-page active" id="tipsPageKeys">
+          <div class="tip-item">
+            <strong style="color:#111">Gemini 2.0 Flash (免费)</strong>
+            <div class="tip-desc">前往 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 一键创建 API Key，完全免费。</div>
+          </div>
+          <div class="tip-item">
+            <strong style="color:#111">DeepSeek V4 Flash Free (免费额度)</strong>
+            <div class="tip-desc">前往 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a> 注册创建 API Key，新用户有免费额度。</div>
+          </div>
+          <div class="tip-item">
+            <strong style="color:#111">GLM-4.5 (免费额度)</strong>
+            <div class="tip-desc">前往 <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">open.bigmodel.cn/usercenter/apikeys</a> 注册创建 API Key，实名认证送免费额度。</div>
+          </div>
+          <div class="tip-note">API Key 仅保存在浏览器本地，不会上传到其他服务器。</div>
         </div>
-        <div class="tip-item">
-          <strong style="color:#111">DeepSeek V4 Flash Free (免费额度)</strong>
-          <div class="tip-desc">前往 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a> 注册并创建 API Key，新用户有免费额度，无需付费。</div>
+        <div class="tips-page" id="tipsPageTuning">
+          <div class="tip-item">
+            <strong>Detection Interval</strong>
+            <div class="tip-desc">姿态检测间隔（毫秒）。数值越小越流畅但更耗性能。建议 500-1000ms。</div>
+          </div>
+          <div class="tip-item">
+            <strong>3D Rotation Speed</strong>
+            <div class="tip-desc">3D 小人自动旋转速度。数值越大转得越快。建议 0.005-0.02。</div>
+          </div>
+          <div class="tip-item">
+            <strong>3D Animation Speed</strong>
+            <div class="tip-desc">3D 演示动画的插值振荡频率。数值越大动作切换越快。建议 0.002-0.006。</div>
+          </div>
+          <div class="tip-item">
+            <strong>LLM Temperature</strong>
+            <div class="tip-desc">AI 教练回复的随机性/创造性。0 = 每次都一样，1 = 天马行空。建议 0.5-0.9。</div>
+          </div>
+          <div class="tip-item">
+            <strong>LLM Max Tokens</strong>
+            <div class="tip-desc">AI 教练回复的最大字数。数值越大回复越长。建议 60-150。</div>
+          </div>
+          <div class="tip-item">
+            <strong>Pose Match Threshold</strong>
+            <div class="tip-desc">姿态匹配的判定阈值。低于此值判定为"需要改进"。建议 0.4-0.7。</div>
+          </div>
+          <div class="tip-note">调参原则：先调 Detection Interval 确保流畅度，再调 Temperature 得到合适的回复风格，最后根据实际效果微调其他参数。</div>
         </div>
-        <div class="tip-item">
-          <strong style="color:#111">GLM-4.5 (免费额度)</strong>
-          <div class="tip-desc">前往 <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener">open.bigmodel.cn/usercenter/apikeys</a> 注册并创建 API Key，实名认证后送免费额度，无需付费。</div>
-        </div>
-        <div class="tip-note">API Key 仅保存在你的浏览器本地，不会上传到其他服务器。</div>
       </div>
     </div>
     <div class="settings-overlay" id="tipsOverlay"></div>
+
+    <div class="advanced-panel" id="advancedPanel">
+      <div class="settings-header">
+        <h3>🔧 Advanced Settings</h3>
+        <button class="settings-close" id="advancedClose">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-group">
+          <label class="setting-label">Detection Interval <span class="adv-val" id="advIntervalVal">1000ms</span></label>
+          <input type="range" class="adv-slider" id="advInterval" min="300" max="3000" value="1000" step="100" />
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">3D Rotation Speed <span class="adv-val" id="advRotateVal">0.008</span></label>
+          <input type="range" class="adv-slider" id="advRotate" min="0" max="0.03" value="0.008" step="0.001" />
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">3D Animation Speed <span class="adv-val" id="advAnimVal">0.003</span></label>
+          <input type="range" class="adv-slider" id="advAnim" min="0.001" max="0.008" value="0.003" step="0.0005" />
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">LLM Temperature <span class="adv-val" id="advTempVal">0.7</span></label>
+          <input type="range" class="adv-slider" id="advTemp" min="0" max="1" value="0.7" step="0.05" />
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">LLM Max Tokens <span class="adv-val" id="advTokensVal">80</span></label>
+          <input type="range" class="adv-slider" id="advTokens" min="30" max="200" value="80" step="10" />
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">Pose Match Threshold <span class="adv-val" id="advThreshVal">0.50</span></label>
+          <input type="range" class="adv-slider" id="advThresh" min="0.1" max="0.9" value="0.5" step="0.05" />
+        </div>
+      </div>
+    </div>
+    <div class="settings-overlay" id="advancedOverlay"></div>
 
     <main>
       <div class="left-panel">

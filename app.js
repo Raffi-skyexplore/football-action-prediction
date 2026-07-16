@@ -96,7 +96,7 @@ class Skeleton3DRenderer {
 
     if (sourceKps && sourceKps.length >= 17 && actionName) {
       const source = this._normApply(sourceKps, info);
-      const t = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(Date.now() * 0.003));
+      const t = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(Date.now() * (advState.animSpeed || 0.003)));
       pts = [];
       for (let i = 0; i < 17; i++) {
         if (!target[i] || !source[i]) { pts.push(target[i]); continue; }
@@ -250,10 +250,13 @@ class Skeleton3DRenderer {
     this._clearGroup();
   }
 
+  setRotateSpeed(s) { this._rotateSpeed = s; }
+  setAnimSpeed(s) { this._animSpeed = s; }
+
   _animate() {
     requestAnimationFrame(() => this._animate());
-    this.group.rotation.y += 0.008;
-    this.group.rotation.x = Math.sin(Date.now() * 0.0004) * 0.04;
+    this.group.rotation.y += this._rotateSpeed || 0.008;
+    this.group.rotation.x = Math.sin(Date.now() * (this._animSpeed || 0.003) * 0.13) * 0.04;
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -931,7 +934,7 @@ async function updateSuggestion(data, matchScore, nextAction) {
   const hasKey = !!getApiKey(state.llmModel);
   if (hasKey) {
     suggestionBody.innerHTML = '<div class="suggestion-icon">🤖</div><div class="suggestion-text" style="opacity:0.6">AI thinking...</div>';
-    const tip = await callLLMAction(data.action, data.confidence, matchScore, nextAction, state.role);
+    const tip = await callLLMAction(data.action, data.confidence, matchScore, nextAction, state.role, data.features);
     if (tip) {
       const pct = Math.round(matchScore * 100);
       let badge = pct < 30 ? '<span class="match-bad">Needs work</span>' : pct < 60 ? '<span class="match-ok">Getting there</span>' : pct < 80 ? '<span class="match-ok">Almost!</span>' : '<span class="match-good">Nailed it!</span>';
@@ -1031,25 +1034,40 @@ const LLM_CONFIGS = {
 function getApiKey(model) { return localStorage.getItem('pck_' + model); }
 function setApiKey(model, key) { localStorage.setItem('pck_' + model, key); }
 
-async function callLLMAction(action, conf, match, nextAction, role) {
+async function callLLMAction(action, conf, match, nextAction, role, features) {
   const cfg = LLM_CONFIGS[state.llmModel];
   const key = getApiKey(state.llmModel);
   if (!key) return null;
   const pct = Math.round(match * 100);
   const roleHint = role === 'coach' ? 'You are a professional football coach. Give tactical coaching advice.' : 'You are a personal trainer. Give technique advice.';
-  const prompt = `${roleHint} The player is performing "${action}" (${Math.round(conf*100)}% confidence, form match ${pct}%). Next recommended action: "${nextAction}". Reply with a VERY short tip (1 sentence, one emoji, under 40 words).`;
+
+  let featureStr = '';
+  if (features) {
+    const f = [];
+    if (features.legLift != null) f.push('leg lift ' + features.legLift.toFixed(2));
+    if (features.armReach != null) f.push('arm reach ' + features.armReach.toFixed(2));
+    if (features.crouch != null) f.push('crouch ' + features.crouch.toFixed(2));
+    if (features.lean != null) f.push('lean ' + features.lean.toFixed(2));
+    if (features.legExt != null) f.push('leg extension ' + features.legExt.toFixed(2));
+    if (f.length) featureStr = ' Body features: ' + f.join(', ') + '.';
+  }
+
+  const prompt = `${roleHint} The player is performing "${action}" (${Math.round(conf*100)}% confidence, form match ${pct}%).${featureStr} Next recommended action: "${nextAction}". Reply with a VERY short tip (1 sentence, one emoji, under 40 words). Reference the 3D pose data for accuracy.`;
+  const temp = advState.temperature;
+  const tokens = advState.maxTokens;
+
   try {
     if (cfg.isGemini) {
       const res = await fetch(cfg.endpoint + '?key=' + encodeURIComponent(key), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 80, temperature: 0.7 } })
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: tokens, temperature: temp } })
       });
       const data = await res.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
     } else {
       const res = await fetch(cfg.endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: prompt }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: 80, temperature: 0.7 })
+        body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: prompt }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: tokens, temperature: temp })
       });
       const data = await res.json();
       return data.choices?.[0]?.message?.content || null;
@@ -1070,7 +1088,7 @@ async function startCamera() {
       feedbackSection.classList.add('visible');
       feedbackStatus.textContent = '● Active'; feedbackStatus.className = 'feedback-status analyzing';
       animateFrame();
-      state.detectInterval = setInterval(detectPose, 1000);
+      state.detectInterval = setInterval(detectPose, advState.interval);
       detectPose();
     };
     btnCamera.textContent = '⏹ Stop'; btnCamera.classList.add('btn-camera-active');
@@ -1207,6 +1225,58 @@ $('btnSaveKey').addEventListener('click', () => {
 
 const initModel = document.querySelector(`.setting-option[data-model="${state.llmModel}"]`);
 if (initModel) { initModel.classList.add('active'); showApiKeyInput(state.llmModel); }
+
+// === Tips Tabs ===
+document.querySelectorAll('.tips-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tips-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tips-page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const page = $('tipsPage' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1));
+    if (page) page.classList.add('active');
+  });
+});
+
+// === Advanced Settings ===
+const advancedPanel = $('advancedPanel');
+const advancedOverlay = $('advancedOverlay');
+
+function openAdvanced() { advancedPanel.classList.add('open'); advancedOverlay.classList.add('open'); }
+function closeAdvanced() { advancedPanel.classList.remove('open'); advancedOverlay.classList.remove('open'); }
+
+$('btnAdvanced').addEventListener('click', openAdvanced);
+$('advancedClose').addEventListener('click', closeAdvanced);
+advancedOverlay.addEventListener('click', closeAdvanced);
+
+const advState = { interval: 1000, rotateSpeed: 0.008, animSpeed: 0.003, temperature: 0.7, maxTokens: 80, threshold: 0.5 };
+
+$('advInterval').addEventListener('input', function() {
+  advState.interval = +this.value;
+  $('advIntervalVal').textContent = this.value + 'ms';
+  if (state.detectInterval) { clearInterval(state.detectInterval); state.detectInterval = setInterval(detectPose, advState.interval); }
+});
+$('advRotate').addEventListener('input', function() {
+  advState.rotateSpeed = +this.value;
+  $('advRotateVal').textContent = this.value;
+  if (skeleton3D) skeleton3D.setRotateSpeed(advState.rotateSpeed);
+});
+$('advAnim').addEventListener('input', function() {
+  advState.animSpeed = +this.value;
+  $('advAnimVal').textContent = this.value;
+  if (skeleton3D) skeleton3D.setAnimSpeed(advState.animSpeed);
+});
+$('advTemp').addEventListener('input', function() {
+  advState.temperature = +this.value;
+  $('advTempVal').textContent = this.value;
+});
+$('advTokens').addEventListener('input', function() {
+  advState.maxTokens = +this.value;
+  $('advTokensVal').textContent = this.value;
+});
+$('advThresh').addEventListener('input', function() {
+  advState.threshold = +this.value;
+  $('advThreshVal').textContent = (+this.value).toFixed(2);
+});
 
 btnCamera.addEventListener('click', () => { state.isCamera ? resetAll() : startCamera(); });
 btnReset.addEventListener('click', resetAll);
