@@ -18,7 +18,7 @@ const state = {
   lastKeypoints: null, targetKeypoints: null, targetAction: null,
   matchScore: 0, prevAction: null,
   role: 'player',
-  llmModel: 'gpt',
+  llmModel: 'gemini',
   actionPositions: []
 };
 
@@ -1023,7 +1023,7 @@ async function loadModel() {
 }
 
 const LLM_CONFIGS = {
-  gpt: { name: 'GPT-5.5', endpoint: 'https://api.openai.com/v1/chat/completions', apiModel: 'gpt-4o', keyLabel: 'OpenAI API Key' },
+  gemini: { name: 'Gemini 2.0 Flash', endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', apiModel: '', keyLabel: 'Google AI Studio API Key', isGemini: true },
   deepseek: { name: 'DeepSeek V4 Flash Free', endpoint: 'https://api.deepseek.com/v1/chat/completions', apiModel: 'deepseek-chat', keyLabel: 'DeepSeek API Key' },
   glm: { name: 'GLM-4.5', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', apiModel: 'glm-4', keyLabel: '智谱 API Key' }
 };
@@ -1037,14 +1037,23 @@ async function callLLMAction(action, conf, match, nextAction, role) {
   if (!key) return null;
   const pct = Math.round(match * 100);
   const roleHint = role === 'coach' ? 'You are a professional football coach. Give tactical coaching advice.' : 'You are a personal trainer. Give technique advice.';
-  const sys = `${roleHint} The player is performing "${action}" (${Math.round(conf*100)}% confidence, form match ${pct}%). Next recommended action: "${nextAction}". Reply with a VERY short tip (1 sentence, one emoji, under 40 words).`;
+  const prompt = `${roleHint} The player is performing "${action}" (${Math.round(conf*100)}% confidence, form match ${pct}%). Next recommended action: "${nextAction}". Reply with a VERY short tip (1 sentence, one emoji, under 40 words).`;
   try {
-    const res = await fetch(cfg.endpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: 80, temperature: 0.7 })
-    });
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
+    if (cfg.isGemini) {
+      const res = await fetch(cfg.endpoint + '?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 80, temperature: 0.7 } })
+      });
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } else {
+      const res = await fetch(cfg.endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: prompt }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: 80, temperature: 0.7 })
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || null;
+    }
   } catch (e) { return null; }
 }
 
