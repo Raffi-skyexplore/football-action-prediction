@@ -85,62 +85,116 @@ class Skeleton3DRenderer {
   }
 
   update(kps, actionName) {
-    while (this.group.children.length) {
-      const c = this.group.children[0];
-      if (c.geometry) c.geometry.dispose();
-      if (c.material) c.material.dispose();
-      this.group.remove(c);
-    }
+    this._clearGroup();
     skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
     if (!kps || kps.length < 17) return;
 
     const pts = this._to3D(kps);
 
-    const jColor = 0x4a9eff;
-    const bColor = 0x4a9eff;
+    const skinColor = 0x4a9eff;
+    const jointColor = 0x5aaeff;
+    const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.35, metalness: 0.05 });
 
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      if (!p) continue;
-      const s = new THREE.Mesh(
-        new THREE.SphereGeometry(0.045, 12, 12),
-        new THREE.MeshStandardMaterial({ color: jColor, roughness: 0.3, metalness: 0.15 })
-      );
-      s.position.set(p.x, p.y, p.z);
-      this.group.add(s);
-    }
-
-    for (const limb of LIMB_PAIRS) {
-      const a = pts[limb.a], b = pts[limb.b];
-      if (!a || !b) continue;
+    // Helper: cylinder between two 3D points
+    const addLimb = (a, b, radius, color) => {
+      if (!a || !b) return;
       const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
       const len = Math.hypot(dx, dy, dz);
-      if (len < 0.002) continue;
-      const bone = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.022, 0.022, len, 6),
-        new THREE.MeshStandardMaterial({ color: bColor, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.85 })
+      if (len < 0.003) return;
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, len, 8),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.05 })
       );
-      bone.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      mesh.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
       const up = new THREE.Vector3(0, 1, 0);
-      const dir = new THREE.Vector3(dx, dy, dz).normalize();
-      bone.quaternion.setFromUnitVectors(up, dir);
-      this.group.add(bone);
+      mesh.quaternion.setFromUnitVectors(up, new THREE.Vector3(dx, dy, dz).normalize());
+      this.group.add(mesh);
+    };
+
+    const addJoint = (p, r, color) => {
+      if (!p) return;
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 10, 10),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.05 })
+      );
+      mesh.position.set(p.x, p.y, p.z);
+      this.group.add(mesh);
+    };
+
+    // --- Head ---
+    if (pts[0]) {
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 14, 14),
+        skinMat
+      );
+      head.position.set(pts[0].x, pts[0].y, pts[0].z);
+      this.group.add(head);
     }
 
-    const tl = pts[5], tr = pts[6], br = pts[12], bl = pts[11];
-    if (tl && tr && br && bl) {
-      const geo = new THREE.BufferGeometry();
-      const verts = new Float32Array([
-        tl.x, tl.y, tl.z, tr.x, tr.y, tr.z, br.x, br.y, br.z,
-        tl.x, tl.y, tl.z, br.x, br.y, br.z, bl.x, bl.y, bl.z
-      ]);
-      geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      geo.computeVertexNormals();
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0x4a9eff, transparent: true, opacity: 0.08, side: THREE.DoubleSide
-      });
-      const torso = new THREE.Mesh(geo, mat);
+    // --- Neck ---
+    const shMid = this._mid(pts[5], pts[6]);
+    if (pts[0] && shMid) {
+      addLimb(pts[0], shMid, 0.04, skinColor);
+    }
+
+    // --- Torso (box between shoulders and hips) ---
+    const hpMid = this._mid(pts[11], pts[12]);
+    if (shMid && hpMid) {
+      const tw = this._dist(pts[5], pts[6]) * 1.1 || 0.18;
+      const th = this._dist(shMid, hpMid) * 1.05 || 0.3;
+      const td = tw * 0.45;
+      const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(tw, th, td),
+        skinMat
+      );
+      torso.position.set(
+        (shMid.x + hpMid.x) / 2,
+        (shMid.y + hpMid.y) / 2,
+        (shMid.z + hpMid.z) / 2
+      );
+      // orient torso along shoulder-to-hip direction
+      const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
+      if (Math.hypot(sdx, sdy, sdz) > 0.01) {
+        torso.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3(sdx, sdy, sdz).normalize()
+        );
+      }
       this.group.add(torso);
+    }
+
+    // --- Limbs ---
+    addLimb(pts[5], pts[7], 0.05, 0x5aaeff);   // L upper arm
+    addLimb(pts[7], pts[9], 0.038, 0x5aaeff);  // L forearm
+    addLimb(pts[6], pts[8], 0.05, 0x5aaeff);   // R upper arm
+    addLimb(pts[8], pts[10], 0.038, 0x5aaeff); // R forearm
+    addLimb(pts[11], pts[13], 0.06, 0x3d8eff); // L thigh
+    addLimb(pts[13], pts[15], 0.045, 0x3d8eff);// L shin
+    addLimb(pts[12], pts[14], 0.06, 0x3d8eff); // R thigh
+    addLimb(pts[14], pts[16], 0.045, 0x3d8eff);// R shin
+
+    // --- Joints ---
+    for (const i of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
+      addJoint(pts[i], 0.035, jointColor);
+    }
+  }
+
+  _mid(a, b) {
+    if (!a || !b) return null;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
+  }
+
+  _dist(a, b) {
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  }
+
+  _clearGroup() {
+    while (this.group.children.length) {
+      const c = this.group.children[0];
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+      this.group.remove(c);
     }
   }
 
@@ -163,12 +217,7 @@ class Skeleton3DRenderer {
   }
 
   clear() {
-    while (this.group.children.length) {
-      const c = this.group.children[0];
-      if (c.geometry) c.geometry.dispose();
-      if (c.material) c.material.dispose();
-      this.group.remove(c);
-    }
+    this._clearGroup();
   }
 
   _animate() {
