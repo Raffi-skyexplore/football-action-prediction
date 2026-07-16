@@ -84,16 +84,33 @@ class Skeleton3DRenderer {
     this._animate();
   }
 
-  update(kps, actionName) {
+  update(targetKps, actionName, sourceKps) {
     this._clearGroup();
     skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
-    if (!kps || kps.length < 17) return;
+    if (!targetKps || targetKps.length < 17) return;
 
-    const pts = this._to3D(kps);
+    // Normalize both source and target using the same center/scale (from target)
+    const info = this._normInfo(targetKps);
+    const target = this._normApply(targetKps, info);
+    let pts = target;
+
+    if (sourceKps && sourceKps.length >= 17 && actionName) {
+      const source = this._normApply(sourceKps, info);
+      const t = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(Date.now() * 0.003));
+      pts = [];
+      for (let i = 0; i < 17; i++) {
+        if (!target[i] || !source[i]) { pts.push(target[i]); continue; }
+        pts.push({
+          x: source[i].x + (target[i].x - source[i].x) * t,
+          y: source[i].y + (target[i].y - source[i].y) * t,
+          z: source[i].z + (target[i].z - source[i].z) * t
+        });
+      }
+    }
+
     const color = 0x4699e6;
     const mat = () => new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.02, flatShading: false });
 
-    // Build a capsule LatheGeometry profile
     const capsuleGeo = (radius, length) => {
       const half = length / 2;
       const segs = 6;
@@ -112,21 +129,16 @@ class Skeleton3DRenderer {
       return new THREE.LatheGeometry(p, 10);
     };
 
-    // Torso: tapered box using LatheGeometry for smooth shape
-    const torsoProfile = (topW, botW, height, depth) => {
-      // Use a custom profile wider at top (shoulders), narrower at bottom (hips)
-      // Actually use a simple rounded box approach: just a modified capsule
+    const torsoProfile = (topW, botW, height) => {
       const half = height / 2;
       const segs = 4;
       const p = [];
       p.push(new THREE.Vector2(0, -half));
-      // bottom curve
       for (let i = 1; i <= segs; i++) {
         const t = i / segs;
         const r = botW / 2 + (topW / 2 - botW / 2) * t;
         p.push(new THREE.Vector2(r, -half + t * height));
       }
-      // top cap
       for (let i = 1; i <= segs; i++) {
         const a = (i / segs) * (Math.PI / 2);
         p.push(new THREE.Vector2(topW / 2 * Math.cos(a), half + (topW / 4) * Math.sin(a)));
@@ -135,7 +147,6 @@ class Skeleton3DRenderer {
       return new THREE.LatheGeometry(p, 12);
     };
 
-    // Helper: oriented capsule between two 3D points
     const addCapsule = (a, b, radius) => {
       if (!a || !b) return;
       const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
@@ -151,7 +162,6 @@ class Skeleton3DRenderer {
 
     // --- Head ---
     if (pts[0]) {
-      // Slightly oval head
       const head = new THREE.Mesh(
         new THREE.SphereGeometry(0.09, 14, 14),
         new THREE.MeshStandardMaterial({ color: 0x5aacff, roughness: 0.25, metalness: 0.02 })
@@ -163,22 +173,17 @@ class Skeleton3DRenderer {
 
     // --- Neck ---
     const shMid = this._mid(pts[5], pts[6]);
-    if (pts[0] && shMid) {
-      addCapsule(pts[0], shMid, 0.035);
-    }
+    if (pts[0] && shMid) addCapsule(pts[0], shMid, 0.035);
 
-    // --- Torso (tapered from shoulders to hips) ---
+    // --- Torso (tapered shoulders→hips) ---
     const hpMid = this._mid(pts[11], pts[12]);
     if (shMid && hpMid) {
       const topW = this._dist(pts[5], pts[6]) * 1.15 || 0.2;
       const botW = this._dist(pts[11], pts[12]) * 1.1 || 0.15;
       const th = this._dist(shMid, hpMid) * 1.05 || 0.28;
-      const geo = torsoProfile(topW, botW, th, 0);
-      const torso = new THREE.Mesh(geo, mat());
+      const torso = new THREE.Mesh(torsoProfile(topW, botW, th), mat());
       torso.position.set(
-        (shMid.x + hpMid.x) / 2,
-        (shMid.y + hpMid.y) / 2,
-        (shMid.z + hpMid.z) / 2
+        (shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2
       );
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
       if (Math.hypot(sdx, sdy, sdz) > 0.01) {
@@ -190,7 +195,7 @@ class Skeleton3DRenderer {
       this.group.add(torso);
     }
 
-    // --- Limbs (smooth capsules) ---
+    // --- Limbs ---
     addCapsule(pts[5], pts[7], 0.045);
     addCapsule(pts[7], pts[9], 0.035);
     addCapsule(pts[6], pts[8], 0.045);
@@ -220,7 +225,7 @@ class Skeleton3DRenderer {
     }
   }
 
-  _to3D(kps) {
+  _normInfo(kps) {
     let mx = 0, my = 0, n = 0;
     for (const k of kps) {
       if (k.x != null && k.y != null) { mx += k.x; my += k.y; n++; }
@@ -230,11 +235,14 @@ class Skeleton3DRenderer {
     for (const k of kps) {
       if (k.x != null && k.y != null) maxD = Math.max(maxD, Math.hypot(k.x - mx, k.y - my));
     }
-    const s = maxD > 0 ? 1.2 / maxD : 1;
+    return { mx, my, scale: maxD > 0 ? 1.2 / maxD : 1 };
+  }
+
+  _normApply(kps, info) {
     const zMap = [0, -0.15, 0.15, -0.2, 0.2, -0.25, 0.25, -0.3, 0.3, -0.35, 0.35, -0.2, 0.2, -0.3, 0.3, -0.35, 0.35];
     return kps.map((k, i) => {
       if (!k || k.x == null) return null;
-      return { x: (k.x - mx) * s, y: -(k.y - my) * s, z: zMap[i] || 0 };
+      return { x: (k.x - info.mx) * info.scale, y: -(k.y - info.my) * info.scale, z: zMap[i] || 0 };
     });
   }
 
@@ -955,7 +963,7 @@ function displayPrediction(data, kps) {
 
   suggestionBody.innerHTML = generateSuggestion(data, state.matchScore, nextAction, data.features);
 
-  if (skeleton3D) skeleton3D.update(state.targetKeypoints, nextAction);
+  if (skeleton3D) skeleton3D.update(state.targetKeypoints, nextAction, kps);
 
   if (state.role === 'coach') addActionPosition(kps, data.action);
 }
