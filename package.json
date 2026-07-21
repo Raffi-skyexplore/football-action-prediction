@@ -1,0 +1,11 @@
+{
+  "name": "posecoach",
+  "version": "1.0.0",
+  "description": "AI-powered football pose coach using MoveNet + Three.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve . -p 3000 --no-clipboard",
+    "test": "node --test tests/*.test.js",
+    "test:watch": "node --test --watch tests/*.test.js"
+  }
+}

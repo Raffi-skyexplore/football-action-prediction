@@ -6,10 +6,10 @@ class Skeleton3DRenderer {
     this.height = Math.max(rect.height || 180, 180);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0d1117);
+    this.scene.background = new THREE.Color(0x1a1a2e);
 
     this.camera = new THREE.PerspectiveCamera(40, this.width / this.height, 0.1, 100);
-    this.camera.position.set(0, 0.3, 3.5);
+    this.camera.position.set(0, 0.5, 3.2);
     this.camera.lookAt(0, 0, 0);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -17,42 +17,48 @@ class Skeleton3DRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0x404060, 0.6);
+    const ambient = new THREE.AmbientLight(0x8888cc, 0.5);
     this.scene.add(ambient);
-    const main = new THREE.DirectionalLight(0xffffff, 1.2);
-    main.position.set(2, 3, 4);
+    const main = new THREE.DirectionalLight(0xffffff, 1.5);
+    main.position.set(3, 4, 5);
     this.scene.add(main);
-    const fill = new THREE.DirectionalLight(0x4488ff, 0.4);
-    fill.position.set(-2, 1, -3);
+    const fill = new THREE.DirectionalLight(0x8888ff, 0.4);
+    fill.position.set(-3, 1, 2);
     this.scene.add(fill);
-    const rim = new THREE.DirectionalLight(0x88ccff, 0.3);
-    rim.position.set(0, -2, -2);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.3);
+    rim.position.set(0, -2, -3);
     this.scene.add(rim);
 
     this.group = new THREE.Group();
     this.scene.add(this.group);
 
-    this.bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.1 });
-    this.jointMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.5, metalness: 0.05 });
+    this.mat = new THREE.MeshPhysicalMaterial({
+      color: 0xf0f0f0,
+      roughness: 0.3,
+      metalness: 0.0,
+      clearcoat: 0.1,
+      clearcoatRoughness: 0.4
+    });
 
     this._animate();
   }
 
-  _addLimb(a, b, radius) {
+  _cyl(a, b, r1, r2) {
     if (!a || !b) return;
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const len = Math.hypot(dx, dy, dz);
-    if (len < 0.005) return;
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.85, radius, len, 8), this.bodyMat);
-    mesh.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
-    this.group.add(mesh);
-    const j1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.8, 8, 8), this.jointMat);
-    j1.position.set(a.x, a.y, a.z);
-    this.group.add(j1);
-    const j2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.7, 8, 8), this.jointMat);
-    j2.position.set(b.x, b.y, b.z);
-    this.group.add(j2);
+    if (len < 0.008) return;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1 || r2 || 0.04, r2 || r1 || 0.04, len, 10), this.mat);
+    m.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
+    this.group.add(m);
+  }
+
+  _sph(p, r) {
+    if (!p) return;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 10), this.mat);
+    m.position.set(p.x, p.y, p.z);
+    this.group.add(m);
   }
 
   update(targetKps, actionName, sourceKps) {
@@ -82,35 +88,38 @@ class Skeleton3DRenderer {
 
     const shMid = this._mid(pts[5], pts[6]);
     const hpMid = this._mid(pts[11], pts[12]);
+    const bodyLen = shMid && hpMid ? this._dist(shMid, hpMid) : 0.3;
 
     if (pts[0]) {
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), this.bodyMat);
-      head.position.set(pts[0].x, pts[0].y, pts[0].z);
-      head.scale.y = 1.12;
-      this.group.add(head);
+      const hr = bodyLen * 0.12;
+      const h = new THREE.Mesh(new THREE.SphereGeometry(hr, 12, 12), this.mat);
+      h.position.set(pts[0].x, pts[0].y + hr * 0.1, pts[0].z);
+      h.scale.set(1, 1.15, 0.9);
+      this.group.add(h);
     }
 
-    if (pts[0] && shMid) this._addLimb(pts[0], shMid, 0.03);
+    if (pts[0] && shMid) this._cyl(pts[0], shMid, bodyLen * 0.035, bodyLen * 0.04);
 
     if (shMid && hpMid) {
-      const tw = (this._dist(pts[5], pts[6]) * 0.55 || 0.16);
-      const th = this._dist(shMid, hpMid) * 0.55 || 0.26;
-      const torso = new THREE.Mesh(new THREE.CylinderGeometry(tw * 0.55, tw * 0.65, th, 10), this.bodyMat);
-      torso.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2);
+      const sw = this._dist(pts[5], pts[6]) * 0.5 || 0.16;
+      const hw = this._dist(pts[11], pts[12]) * 0.55 || 0.14;
+      const th = bodyLen * 0.55;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(sw, hw, th, 12), this.mat);
+      t.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2);
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
       if (Math.hypot(sdx, sdy, sdz) > 0.01)
-        torso.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
-      this.group.add(torso);
+        t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
+      this.group.add(t);
     }
 
-    this._addLimb(pts[5], pts[7], 0.035);
-    this._addLimb(pts[7], pts[9], 0.028);
-    this._addLimb(pts[6], pts[8], 0.035);
-    this._addLimb(pts[8], pts[10], 0.028);
-    this._addLimb(pts[11], pts[13], 0.045);
-    this._addLimb(pts[13], pts[15], 0.035);
-    this._addLimb(pts[12], pts[14], 0.045);
-    this._addLimb(pts[14], pts[16], 0.035);
+    this._cyl(pts[5], pts[7], bodyLen * 0.04, bodyLen * 0.035);
+    this._cyl(pts[7], pts[9], bodyLen * 0.03, bodyLen * 0.025);
+    this._cyl(pts[6], pts[8], bodyLen * 0.04, bodyLen * 0.035);
+    this._cyl(pts[8], pts[10], bodyLen * 0.03, bodyLen * 0.025);
+    this._cyl(pts[11], pts[13], bodyLen * 0.045, bodyLen * 0.04);
+    this._cyl(pts[13], pts[15], bodyLen * 0.035, bodyLen * 0.03);
+    this._cyl(pts[12], pts[14], bodyLen * 0.045, bodyLen * 0.04);
+    this._cyl(pts[14], pts[16], bodyLen * 0.035, bodyLen * 0.03);
   }
 
   _mid(a, b) { if (!a || !b) return null; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 }; }
