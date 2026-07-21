@@ -81,65 +81,25 @@ class Skeleton3DRenderer {
     this.group = new THREE.Group();
     this.scene.add(this.group);
 
-    this.sprite = null;
-    this.textureLoaded = false;
-    const loader = new THREE.TextureLoader();
-    loader.load('img/character.webp', (tex) => {
-      this.textureLoaded = true;
-      this._createSprite(tex);
-    }, undefined, () => {
-      this.textureLoaded = false;
-    });
-
-    this.skinMat = new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6, metalness: 0 });
-    this.hairMat = new THREE.MeshStandardMaterial({ color: 0x2d1a0e, roughness: 0.9, metalness: 0 });
-    this.shoeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9, metalness: 0 });
-    this.jerseyMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.7, metalness: 0.05 });
-    this.shortsMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8, metalness: 0 });
-    this.sockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0 });
+    this.bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.1 });
+    this.jointMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.5, metalness: 0.05 });
 
     this._animate();
   }
 
-  _createSprite(tex) {
-    if (this.sprite && this.sprite.parent) {
-      this.sprite.parent.remove(this.sprite);
-    }
-    const mat = new THREE.SpriteMaterial({
-      map: tex,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-    });
-    this.sprite = new THREE.Sprite(mat);
-    this.sprite.scale.set(0.6, 0.9, 1);
-    this.sprite.position.set(0, 0.4, 0);
-    this.group.add(this.sprite);
-  }
-
-  _addCyl(a, b, radius, mat) {
+  _addLimb(a, b, radius) {
     if (!a || !b) return;
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const len = Math.hypot(dx, dy, dz);
     if (len < 0.005) return;
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.85, radius, len, 6), mat);
-    mesh.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
-    this.group.add(mesh);
-  }
-
-  _addSphere(pos, radius, mat) {
-    if (!pos) return;
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 8, 8), mat);
-    mesh.position.set(pos.x, pos.y, pos.z);
-    this.group.add(mesh);
-  }
-
-  _addBox(pos, w, h, d, mat) {
-    if (!pos) return;
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    mesh.position.set(pos.x, pos.y, pos.z);
-    this.group.add(mesh);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.85, radius, len, 8), this.bodyMat);
+    m.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
+    this.group.add(m);
+    const j1 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.8, 8, 8), this.jointMat);
+    j1.position.set(a.x, a.y, a.z); this.group.add(j1);
+    const j2 = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.7, 8, 8), this.jointMat);
+    j2.position.set(b.x, b.y, b.z); this.group.add(j2);
   }
 
   update(targetKps, actionName, sourceKps) {
@@ -157,74 +117,45 @@ class Skeleton3DRenderer {
       pts = [];
       for (let i = 0; i < 17; i++) {
         if (!target[i] || !source[i]) { pts.push(target[i]); continue; }
-        pts.push({
-          x: source[i].x + (target[i].x - source[i].x) * t,
-          y: source[i].y + (target[i].y - source[i].y) * t,
-          z: source[i].z + (target[i].z - source[i].z) * t
-        });
+        pts.push({ x: source[i].x + (target[i].x - source[i].x) * t, y: source[i].y + (target[i].y - source[i].y) * t, z: source[i].z + (target[i].z - source[i].z) * t });
       }
     }
 
     const shMid = this._mid(pts[5], pts[6]);
     const hpMid = this._mid(pts[11], pts[12]);
-    const bodyH = shMid && hpMid ? this._dist(shMid, hpMid) : 0.3;
 
     if (pts[0]) {
-      const hr = bodyH * 0.14;
-      this._addSphere(pts[0], hr, this.skinMat);
-      this._addSphere({ x: pts[0].x, y: pts[0].y + hr * 0.7, z: pts[0].z }, hr * 0.6, this.hairMat);
+      const h = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 12), this.bodyMat);
+      h.position.set(pts[0].x, pts[0].y, pts[0].z); h.scale.y = 1.12;
+      this.group.add(h);
     }
-    if (pts[0] && shMid) this._addCyl(pts[0], shMid, bodyH * 0.035, this.skinMat);
+
+    if (pts[0] && shMid) this._addLimb(pts[0], shMid, 0.03);
 
     if (shMid && hpMid) {
-      const tw = this._dist(pts[5], pts[6]) * 0.55 || 0.16;
-      const th = bodyH * 0.55;
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(tw * 0.45, tw * 0.65, th, 8), this.jerseyMat);
-      t.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y - th * 0.05) / 2 + th * 0.05, (shMid.z + hpMid.z) / 2);
+      const tw = (this._dist(pts[5], pts[6]) * 0.55 || 0.16);
+      const th = this._dist(shMid, hpMid) * 0.55 || 0.26;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(tw * 0.55, tw * 0.65, th, 10), this.bodyMat);
+      t.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2);
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
       if (Math.hypot(sdx, sdy, sdz) > 0.01)
         t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
       this.group.add(t);
-
-      const sh = bodyH * 0.2;
-      const s = new THREE.Mesh(new THREE.CylinderGeometry(tw * 0.7, tw * 0.5, sh, 6), this.shortsMat);
-      s.position.set(hpMid.x, hpMid.y - sh * 0.1, hpMid.z);
-      if (Math.hypot(sdx, sdy, sdz) > 0.01)
-        s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
-      this.group.add(s);
-
-      if (this.textureLoaded && this.sprite) {
-        const centerY = (shMid.y + hpMid.y) / 2;
-        this.sprite.position.set((shMid.x + hpMid.x) / 2, centerY, (shMid.z + hpMid.z) / 2 + 0.05);
-        const bodyW = this._dist(pts[5], pts[6]) * 0.8 || 0.3;
-        const bodyHt = bodyH * 1.0 || 0.5;
-        this.sprite.scale.set(bodyW * 2.5, bodyHt * 1.8, 1);
-        if (!this.sprite.parent) this.group.add(this.sprite);
-      }
     }
 
-    this._addCyl(pts[5], pts[7], bodyH * 0.045, this.jerseyMat);
-    this._addCyl(pts[7], pts[9], bodyH * 0.035, this.skinMat);
-    this._addCyl(pts[6], pts[8], bodyH * 0.045, this.jerseyMat);
-    this._addCyl(pts[8], pts[10], bodyH * 0.035, this.skinMat);
-    this._addCyl(pts[11], pts[13], bodyH * 0.05, this.skinMat);
-    this._addCyl(pts[13], pts[15], bodyH * 0.04, this.sockMat);
-    this._addCyl(pts[12], pts[14], bodyH * 0.05, this.skinMat);
-    this._addCyl(pts[14], pts[16], bodyH * 0.04, this.sockMat);
-    if (pts[15]) { const s = bodyH * 0.035; this._addBox(pts[15], s * 1.4, s * 0.6, s * 1.8, this.shoeMat); }
-    if (pts[16]) { const s = bodyH * 0.035; this._addBox(pts[16], s * 1.4, s * 0.6, s * 1.8, this.shoeMat); }
+    this._addLimb(pts[5], pts[7], 0.035);
+    this._addLimb(pts[7], pts[9], 0.028);
+    this._addLimb(pts[6], pts[8], 0.035);
+    this._addLimb(pts[8], pts[10], 0.028);
+    this._addLimb(pts[11], pts[13], 0.045);
+    this._addLimb(pts[13], pts[15], 0.035);
+    this._addLimb(pts[12], pts[14], 0.045);
+    this._addLimb(pts[14], pts[16], 0.035);
   }
 
   _mid(a, b) { if (!a || !b) return null; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 }; }
   _dist(a, b) { if (!a || !b) return 0; return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
-  _clearGroup() {
-    while (this.group.children.length) {
-      const c = this.group.children[0];
-      if (c === this.sprite) { this.group.remove(c); continue; }
-      if (c.geometry) c.geometry.dispose();
-      this.group.remove(c);
-    }
-  }
+  _clearGroup() { while (this.group.children.length) { const c = this.group.children[0]; if (c.geometry) c.geometry.dispose(); this.group.remove(c); } }
   _normInfo(kps) { let mx = 0, my = 0, n = 0; for (const k of kps) { if (k.x != null && k.y != null) { mx += k.x; my += k.y; n++; } } mx /= n; my /= n; let maxD = 0; for (const k of kps) { if (k.x != null && k.y != null) maxD = Math.max(maxD, Math.hypot(k.x - mx, k.y - my)); } return { mx, my, scale: maxD > 0 ? 1.2 / maxD : 1 }; }
   _normApply(kps, info) { const zMap = [0, -0.15, 0.15, -0.2, 0.2, -0.25, 0.25, -0.3, 0.3, -0.35, 0.35, -0.2, 0.2, -0.3, 0.3, -0.35, 0.35]; return kps.map((k, i) => { if (!k || k.x == null) return null; return { x: (k.x - info.mx) * info.scale, y: -(k.y - info.my) * info.scale, z: zMap[i] || 0 }; }); }
 
