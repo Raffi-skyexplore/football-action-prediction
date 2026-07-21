@@ -81,15 +81,32 @@ class Skeleton3DRenderer {
     this.group = new THREE.Group();
     this.scene.add(this.group);
 
-    this.mat = new THREE.MeshPhysicalMaterial({
-      color: 0xf0f0f0,
-      roughness: 0.3,
-      metalness: 0.0,
-      clearcoat: 0.1,
-      clearcoatRoughness: 0.4
+    this.modelGroup = new THREE.Group();
+    this.group.add(this.modelGroup);
+    this.skelGroup = new THREE.Group();
+    this.group.add(this.skelGroup);
+
+    this.poseMat = new THREE.MeshPhysicalMaterial({
+      color: 0x4fc3f7, roughness: 0.3, metalness: 0.1,
+      transparent: true, opacity: 0.4
     });
 
+    this._loadModel();
     this._animate();
+  }
+
+  _loadModel() {
+    const loader = new THREE.GLTFLoader();
+    loader.load('img/character.glb', (gltf) => {
+      this.model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(this.model);
+      const s = box.getSize(new THREE.Vector3());
+      const c = box.getCenter(new THREE.Vector3());
+      const sc = 1.3 / Math.max(s.x, s.y, s.z);
+      this.model.scale.set(sc, sc, sc);
+      this.model.position.set(-c.x * sc, -c.y * sc, -c.z * sc);
+      this.modelGroup.add(this.model);
+    }, undefined, (e) => console.error('Model load error:', e));
   }
 
   _cyl(a, b, r1, r2) {
@@ -97,21 +114,18 @@ class Skeleton3DRenderer {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const len = Math.hypot(dx, dy, dz);
     if (len < 0.008) return;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1 || r2 || 0.04, r2 || r1 || 0.04, len, 10), this.mat);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1 || r2 || 0.025, r2 || r1 || 0.025, len, 8), this.poseMat);
     m.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
-    this.group.add(m);
-  }
-
-  _sph(p, r) {
-    if (!p) return;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 10), this.mat);
-    m.position.set(p.x, p.y, p.z);
-    this.group.add(m);
+    this.skelGroup.add(m);
   }
 
   update(targetKps, actionName, sourceKps) {
-    this._clearGroup();
+    while (this.skelGroup.children.length) {
+      const c = this.skelGroup.children[0];
+      if (c.geometry) c.geometry.dispose();
+      this.skelGroup.remove(c);
+    }
     if (typeof skeletonLabel !== 'undefined') skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
     if (!targetKps || targetKps.length < 17) return;
 
@@ -134,44 +148,43 @@ class Skeleton3DRenderer {
     const bodyLen = shMid && hpMid ? this._dist(shMid, hpMid) : 0.3;
 
     if (pts[0]) {
-      const hr = bodyLen * 0.12;
-      const h = new THREE.Mesh(new THREE.SphereGeometry(hr, 12, 12), this.mat);
+      const hr = bodyLen * 0.09;
+      const h = new THREE.Mesh(new THREE.SphereGeometry(hr, 10, 10), this.poseMat);
       h.position.set(pts[0].x, pts[0].y + hr * 0.1, pts[0].z);
       h.scale.set(1, 1.15, 0.9);
-      this.group.add(h);
+      this.skelGroup.add(h);
     }
 
-    if (pts[0] && shMid) this._cyl(pts[0], shMid, bodyLen * 0.035, bodyLen * 0.04);
+    if (pts[0] && shMid) this._cyl(pts[0], shMid, bodyLen * 0.025, bodyLen * 0.03);
 
     if (shMid && hpMid) {
-      const sw = this._dist(pts[5], pts[6]) * 0.5 || 0.16;
-      const hw = this._dist(pts[11], pts[12]) * 0.55 || 0.14;
-      const th = bodyLen * 0.55;
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(sw, hw, th, 12), this.mat);
+      const sw = this._dist(pts[5], pts[6]) * 0.35 || 0.1;
+      const hw = this._dist(pts[11], pts[12]) * 0.4 || 0.1;
+      const th = bodyLen * 0.45;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(sw, hw, th, 10), this.poseMat);
       t.position.set((shMid.x + hpMid.x) / 2, (shMid.y + hpMid.y) / 2, (shMid.z + hpMid.z) / 2);
       const sdx = shMid.x - hpMid.x, sdy = shMid.y - hpMid.y, sdz = shMid.z - hpMid.z;
       if (Math.hypot(sdx, sdy, sdz) > 0.01)
         t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sdx, sdy, sdz).normalize());
-      this.group.add(t);
+      this.skelGroup.add(t);
     }
 
-    this._cyl(pts[5], pts[7], bodyLen * 0.04, bodyLen * 0.035);
-    this._cyl(pts[7], pts[9], bodyLen * 0.03, bodyLen * 0.025);
-    this._cyl(pts[6], pts[8], bodyLen * 0.04, bodyLen * 0.035);
-    this._cyl(pts[8], pts[10], bodyLen * 0.03, bodyLen * 0.025);
-    this._cyl(pts[11], pts[13], bodyLen * 0.045, bodyLen * 0.04);
-    this._cyl(pts[13], pts[15], bodyLen * 0.035, bodyLen * 0.03);
-    this._cyl(pts[12], pts[14], bodyLen * 0.045, bodyLen * 0.04);
-    this._cyl(pts[14], pts[16], bodyLen * 0.035, bodyLen * 0.03);
+    this._cyl(pts[5], pts[7], bodyLen * 0.03, bodyLen * 0.025);
+    this._cyl(pts[7], pts[9], bodyLen * 0.022, bodyLen * 0.018);
+    this._cyl(pts[6], pts[8], bodyLen * 0.03, bodyLen * 0.025);
+    this._cyl(pts[8], pts[10], bodyLen * 0.022, bodyLen * 0.018);
+    this._cyl(pts[11], pts[13], bodyLen * 0.035, bodyLen * 0.03);
+    this._cyl(pts[13], pts[15], bodyLen * 0.025, bodyLen * 0.02);
+    this._cyl(pts[12], pts[14], bodyLen * 0.035, bodyLen * 0.03);
+    this._cyl(pts[14], pts[16], bodyLen * 0.025, bodyLen * 0.02);
   }
 
   _mid(a, b) { if (!a || !b) return null; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 }; }
   _dist(a, b) { if (!a || !b) return 0; return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
-  _clearGroup() { while (this.group.children.length) { const c = this.group.children[0]; if (c.geometry) c.geometry.dispose(); this.group.remove(c); } }
   _normInfo(kps) { let mx = 0, my = 0, n = 0; for (const k of kps) { if (k.x != null && k.y != null) { mx += k.x; my += k.y; n++; } } mx /= n; my /= n; let maxD = 0; for (const k of kps) { if (k.x != null && k.y != null) maxD = Math.max(maxD, Math.hypot(k.x - mx, k.y - my)); } return { mx, my, scale: maxD > 0 ? 1.2 / maxD : 1 }; }
   _normApply(kps, info) { const zMap = [0, -0.15, 0.15, -0.2, 0.2, -0.25, 0.25, -0.3, 0.3, -0.35, 0.35, -0.2, 0.2, -0.3, 0.3, -0.35, 0.35]; return kps.map((k, i) => { if (!k || k.x == null) return null; return { x: (k.x - info.mx) * info.scale, y: -(k.y - info.my) * info.scale, z: zMap[i] || 0 }; }); }
 
-  clear() { this._clearGroup(); }
+  clear() { while (this.skelGroup.children.length) { const c = this.skelGroup.children[0]; if (c.geometry) c.geometry.dispose(); this.skelGroup.remove(c); } }
   setRotateSpeed(s) { this._rotateSpeed = s; }
   setAnimSpeed(s) { this._animSpeed = s; }
 
