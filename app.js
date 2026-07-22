@@ -843,13 +843,15 @@ async function updateSuggestion(data, matchScore, nextAction) {
   const hasKey = !!getApiKey(state.llmModel);
   if (hasKey) {
     suggestionBody.innerHTML = '<div class="suggestion-icon">🤖</div><div class="suggestion-text" style="opacity:0.6">AI thinking...</div>';
-    const tip = await callLLMAction(data.action, data.confidence, matchScore, nextAction, state.role, data.features);
-    if (tip) {
+    const result = await callLLMAction(data.action, data.confidence, matchScore, nextAction, state.role, data.features);
+    if (result.ok) {
       const pct = Math.round(matchScore * 100);
       let badge = pct < 30 ? '<span class="match-bad">Needs work</span>' : pct < 60 ? '<span class="match-ok">Getting there</span>' : pct < 80 ? '<span class="match-ok">Almost!</span>' : '<span class="match-good">Nailed it!</span>';
-      suggestionBody.innerHTML = `<div class="suggestion-icon">🎯</div><div class="suggestion-text">${badge} — ${tip}</div>`;
+      suggestionBody.innerHTML = `<div class="suggestion-icon">🎯</div><div class="suggestion-text">${badge} — ${result.text}</div>`;
       return;
     }
+    suggestionBody.innerHTML = `<div class="suggestion-icon">⚠️</div><div class="suggestion-text" style="color:var(--red)">AI Error: ${result.error}. Check your API key in Settings → AI Coach Model.</div>`;
+    return;
   }
   suggestionBody.innerHTML = renderFallbackSuggestion(data, matchScore, nextAction);
 }
@@ -946,7 +948,7 @@ function setApiKey(model, key) { localStorage.setItem('pck_' + model, key); }
 async function callLLMAction(action, conf, match, nextAction, role, features) {
   const cfg = LLM_CONFIGS[state.llmModel];
   const key = getApiKey(state.llmModel);
-  if (!key) return null;
+  if (!key) return { ok: false, error: 'No API key saved' };
   const pct = Math.round(match * 100);
   const roleHint = role === 'coach' ? 'You are a professional football coach. Give tactical coaching advice.' : 'You are a personal trainer. Give technique advice.';
 
@@ -966,22 +968,29 @@ async function callLLMAction(action, conf, match, nextAction, role, features) {
   const tokens = advState.maxTokens;
 
   try {
+    let res, data;
     if (cfg.isGemini) {
-      const res = await fetch(cfg.endpoint + '?key=' + encodeURIComponent(key), {
+      res = await fetch(cfg.endpoint + '?key=' + encodeURIComponent(key), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: tokens, temperature: temp } })
       });
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      data = await res.json();
+      if (!res.ok) return { ok: false, error: `${res.status}: ${data?.error?.message || res.statusText}` };
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) return { ok: false, error: 'Empty response from ' + cfg.name };
+      return { ok: true, text };
     } else {
-      const res = await fetch(cfg.endpoint, {
+      res = await fetch(cfg.endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'system', content: prompt }, { role: 'user', content: 'Give a quick coaching tip.' }], max_tokens: tokens, temperature: temp })
       });
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content || null;
+      data = await res.json();
+      if (!res.ok) return { ok: false, error: `${res.status}: ${data?.error?.message || data?.error || res.statusText}` };
+      const text = data.choices?.[0]?.message?.content;
+      if (!text) return { ok: false, error: 'Empty response from ' + cfg.name };
+      return { ok: true, text };
     }
-  } catch (e) { return null; }
+  } catch (e) { return { ok: false, error: e.message || 'Network error' }; }
 }
 
 async function startCamera() {
@@ -1130,6 +1139,38 @@ $('btnSaveKey').addEventListener('click', () => {
   if (!key) { $apiKeyStatus.textContent = 'Please enter an API key'; $apiKeyStatus.className = 'api-key-status err'; return; }
   setApiKey(state.llmModel, key);
   $apiKeyStatus.textContent = '✓ Key saved'; $apiKeyStatus.className = 'api-key-status ok';
+});
+
+$('btnTestKey').addEventListener('click', async () => {
+  const key = $apiKeyInput.value.trim();
+  if (!key) { $apiKeyStatus.textContent = 'Please enter an API key first'; $apiKeyStatus.className = 'api-key-status err'; return; }
+  setApiKey(state.llmModel, key);
+  $apiKeyStatus.textContent = '⏳ Testing...'; $apiKeyStatus.className = 'api-key-status';
+  const cfg = LLM_CONFIGS[state.llmModel];
+  try {
+    let res, data;
+    if (cfg.isGemini) {
+      res = await fetch(cfg.endpoint + '?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with just the word "OK"' }] }], generationConfig: { maxOutputTokens: 5, temperature: 0 } })
+      });
+      data = await res.json();
+    } else {
+      res = await fetch(cfg.endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: cfg.apiModel, messages: [{ role: 'user', content: 'Reply with just the word "OK"' }], max_tokens: 5, temperature: 0 })
+      });
+      data = await res.json();
+    }
+    if (res.ok) {
+      $apiKeyStatus.textContent = '✓ API key valid! ' + cfg.name + ' ready.'; $apiKeyStatus.className = 'api-key-status ok';
+    } else {
+      const msg = data?.error?.message || data?.error || res.statusText;
+      $apiKeyStatus.textContent = '✗ ' + (res.status || 'Error') + ': ' + msg; $apiKeyStatus.className = 'api-key-status err';
+    }
+  } catch (e) {
+    $apiKeyStatus.textContent = '✗ Network error: ' + e.message; $apiKeyStatus.className = 'api-key-status err';
+  }
 });
 
 const initModel = document.querySelector(`.setting-option[data-model="${state.llmModel}"]`);
