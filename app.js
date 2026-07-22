@@ -54,7 +54,12 @@ const BONE_KPS = {
   'UpperArm.L': [5, 7],   'LowerArm.L': [7, 9],
 };
 
-const DEFAULT_DIR = new THREE.Vector3(0, 1, 0);
+
+const ANIM_MAP = {
+  idle: 'Idle', walk: 'Walk', run: 'Run',
+  shoot: 'Punch', pass: 'Dagger_Attack', dribble: 'Walk',
+  tackle: 'RecieveHit_Attacking', stop: 'Idle'
+};
 
 class Skeleton3DRenderer {
   constructor(container) {
@@ -93,9 +98,9 @@ class Skeleton3DRenderer {
     this.modelGroup = new THREE.Group();
     this.group.add(this.modelGroup);
 
-    this.bones = {};
-    this.bindQ = {};
-    this._pts = null;
+    this.mixer = null;
+    this.animClips = {};
+    this.currentAnim = null;
 
     this._loadModel();
     this._animate();
@@ -113,25 +118,29 @@ class Skeleton3DRenderer {
       this.model.position.set(-c.x * sc, -c.y * sc, -c.z * sc);
       this.modelGroup.add(this.model);
 
-      this.model.traverse((n) => {
-        if (n.isBone) {
-          this.bones[n.name] = n;
-          this.bindQ[n.name] = n.quaternion.clone();
-        }
-      });
+      this.mixer = new THREE.AnimationMixer(this.model);
+      for (const clip of gltf.animations) {
+        const name = clip.name.replace('CharacterArmature|', '');
+        this.animClips[name] = clip;
+      }
+      this._playAnim('Idle');
     }, undefined, (e) => console.error('Model load error:', e));
   }
 
-  _normInfo(kps) { let mx = 0, my = 0, n = 0; for (const k of kps) { if (k.x != null && k.y != null) { mx += k.x; my += k.y; n++; } } mx /= n; my /= n; let maxD = 0; for (const k of kps) { if (k.x != null && k.y != null) maxD = Math.max(maxD, Math.hypot(k.x - mx, k.y - my)); } return { mx, my, scale: maxD > 0 ? 1.2 / maxD : 1 }; }
-  _normApply(kps, info) { const zMap = [0, -0.15, 0.15, -0.2, 0.2, -0.25, 0.25, -0.3, 0.3, -0.35, 0.35, -0.2, 0.2, -0.3, 0.3, -0.35, 0.35]; return kps.map((k, i) => { if (!k || k.x == null) return null; return { x: (k.x - info.mx) * info.scale, y: -(k.y - info.my) * info.scale, z: zMap[i] || 0 }; }); }
+  _playAnim(name) {
+    if (!this.mixer || !this.animClips[name] || this.currentAnim === name) return;
+    if (this.currentAction) this.currentAction.stop();
+    const clip = this.animClips[name];
+    this.currentAction = this.mixer.clipAction(clip);
+    this.currentAction.loop = THREE.LoopRepeat;
+    this.currentAction.play();
+    this.currentAnim = name;
+  }
 
   update(targetKps, actionName, sourceKps) {
     if (typeof skeletonLabel !== 'undefined') skeletonLabel.textContent = actionName ? ACTION_NAMES[actionName] || actionName : '—';
-    if (!targetKps || targetKps.length < 17) return;
-    if (!this.bones[Object.keys(BONE_KPS)[0]]) return;
-
-    const info = this._normInfo(targetKps);
-    this._pts = this._normApply(targetKps, info);
+    const anim = actionName ? ANIM_MAP[actionName] : 'Idle';
+    this._playAnim(anim || 'Idle');
   }
 
   clear() {}
@@ -140,30 +149,7 @@ class Skeleton3DRenderer {
 
   _animate() {
     requestAnimationFrame(() => this._animate());
-
-    if (this.model) {
-      for (const [name, bone] of Object.entries(this.bones)) {
-        if (this.bindQ[name]) bone.quaternion.copy(this.bindQ[name]);
-      }
-      this.model.updateMatrixWorld(true);
-
-      if (this._pts && this._pts[12]) {
-        const pts = this._pts;
-        for (const [boneName, [kpa, kpb]] of Object.entries(BONE_KPS)) {
-          const pa = pts[kpa], pb = pts[kpb];
-          if (!pa || !pb) continue;
-          const dir = new THREE.Vector3(pb.x - pa.x, pb.y - pa.y, pb.z - pa.z);
-          if (dir.length() < 0.01) continue;
-          dir.normalize();
-          const bone = this.bones[boneName];
-          if (!bone || !bone.parent) continue;
-          const inv = new THREE.Matrix4().copy(bone.parent.matrixWorld).invert();
-          const local = dir.clone().applyMatrix4(inv).normalize();
-          bone.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(DEFAULT_DIR, local));
-        }
-      }
-    }
-
+    if (this.mixer) this.mixer.update(0.016);
     this.group.rotation.y += this._rotateSpeed || 0.008;
     this.group.rotation.x = Math.sin(Date.now() * (this._animSpeed || 0.003) * 0.13) * 0.04;
     this.renderer.render(this.scene, this.camera);
@@ -312,15 +298,20 @@ function generateTargetPose(kps, nextAction) {
       break;
     }
     case 'pass': {
-      for (const sd of [-1, 1]) {
-        const s = sd > 0 ? 6 : 5, e = sd > 0 ? 8 : 7, w = sd > 0 ? 10 : 9;
-        const uaLen = sd > 0 ? b.rUpperArm : b.lUpperArm;
-        const faLen = sd > 0 ? b.rForearm : b.lForearm;
-        const dir = sd * faceDir;
-        const shoulder = t[s];
-        t[e] = add(shoulder, { x: Math.cos(dir * 0.3) * uaLen, y: Math.sin(dir * 0.3) * uaLen * 0.2 });
-        t[w] = add(t[e], { x: Math.cos(dir * 0.15) * faLen, y: Math.sin(dir * 0.15) * faLen * 0.15 });
-      }
+      const kickSide = (b.rFoot.y > b.lFoot.y) === (faceDir > 0) ? 1 : -1;
+      const kIdx = kickSide > 0 ? 14 : 13, aIdx = kickSide > 0 ? 16 : 15;
+      const hIdx = kickSide > 0 ? 12 : 11;
+      const oppS = kickSide > 0 ? 5 : 6;
+      const thighLen = kickSide > 0 ? b.rThigh : b.lThigh;
+      const shinLen = kickSide > 0 ? b.rShin : b.lShin;
+
+      const hipPos = t[hIdx];
+      const passAngle = -0.5 * faceDir;
+      t[kIdx] = add(hipPos, { x: Math.cos(passAngle) * thighLen * 0.7, y: Math.sin(passAngle) * thighLen * 0.4 });
+      const kneeDir = norm(sub(t[kIdx], hipPos));
+      const shinAngle = Math.atan2(kneeDir.y, kneeDir.x) + 0.2 * faceDir;
+      t[aIdx] = add(t[kIdx], { x: Math.cos(shinAngle) * shinLen * 0.7, y: Math.sin(shinAngle) * shinLen * 0.4 });
+      t[oppS] = add(t[oppS], rot(scale(norm(sub(t[oppS], t[hIdx])), 0.3), 0.1 * faceDir));
       break;
     }
     case 'dribble': {

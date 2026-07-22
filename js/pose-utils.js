@@ -62,15 +62,20 @@ function generateTargetPose(kps, nextAction) {
       break;
     }
     case 'pass': {
-      for (const sd of [-1, 1]) {
-        const s = sd > 0 ? 6 : 5, e = sd > 0 ? 8 : 7, w = sd > 0 ? 10 : 9;
-        const uaLen = sd > 0 ? b.rUpperArm : b.lUpperArm;
-        const faLen = sd > 0 ? b.rForearm : b.lForearm;
-        const dir = sd * faceDir;
-        const shoulder = t[s];
-        t[e] = add(shoulder, { x: Math.cos(dir * 0.3) * uaLen, y: Math.sin(dir * 0.3) * uaLen * 0.2 });
-        t[w] = add(t[e], { x: Math.cos(dir * 0.15) * faLen, y: Math.sin(dir * 0.15) * faLen * 0.15 });
-      }
+      const kickSide = (b.rFoot.y > b.lFoot.y) === (faceDir > 0) ? 1 : -1;
+      const kIdx = kickSide > 0 ? 14 : 13, aIdx = kickSide > 0 ? 16 : 15;
+      const hIdx = kickSide > 0 ? 12 : 11;
+      const oppS = kickSide > 0 ? 5 : 6;
+      const thighLen = kickSide > 0 ? b.rThigh : b.lThigh;
+      const shinLen = kickSide > 0 ? b.rShin : b.lShin;
+
+      const hipPos = t[hIdx];
+      const passAngle = -0.5 * faceDir;
+      t[kIdx] = add(hipPos, { x: Math.cos(passAngle) * thighLen * 0.7, y: Math.sin(passAngle) * thighLen * 0.4 });
+      const kneeDir = norm(sub(t[kIdx], hipPos));
+      const shinAngle = Math.atan2(kneeDir.y, kneeDir.x) + 0.2 * faceDir;
+      t[aIdx] = add(t[kIdx], { x: Math.cos(shinAngle) * shinLen * 0.7, y: Math.sin(shinAngle) * shinLen * 0.4 });
+      t[oppS] = add(t[oppS], rot(scale(norm(sub(t[oppS], t[hIdx])), 0.3), 0.1 * faceDir));
       break;
     }
     case 'dribble': {
